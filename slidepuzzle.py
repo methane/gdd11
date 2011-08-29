@@ -2,6 +2,10 @@ from __future__ import print_function
 
 from cStringIO import StringIO
 from collections import defaultdict
+import sys
+
+def debug(*args):
+    print(*args, file=sys.stderr)
 
 PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
 
@@ -28,9 +32,9 @@ def read_problem():
     with open('problems.txt') as f:
         L = f.readline().strip()
         LIMITS = map(int, L.split())
-        print('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
+        debug('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
 
-        num_problems = int(f.readline.strip())
+        num_problems = int(f.readline().strip())
 
         boards = []
         for L in f:
@@ -72,6 +76,15 @@ def append_route(routes, new_route):
             return
     routes.append(new_route)
 
+def join_route(route, state, remain):
+    for p, s, r in remain:
+        if state == s:
+            return route + r[::-1]
+
+def join_route_back(broute, state, remain):
+    for p, s, r in remain:
+        if state == s:
+            return r + broute[::-1]
 
 def solve_slide(board):
     W = board.w
@@ -79,21 +92,22 @@ def solve_slide(board):
     Z = W*H
 
     G = make_goal(board.state)
-    print("Goal:", G)
+    debug("Goal:", G)
 
     Q = deque()
     state = board.state
     pos = state.index(b'0')
     Q.append((pos, state, ''))
     visited = set()
-    visited.add(bytes(board.state))
-    old_v1 = set()
+    visited.add(bytes(state))
+    old_v2 = old_v1 = set()
 
     BQ = deque()
     pos = G.index(b'0')
     BQ.append((pos, G, ''))
     bvisited = set()
     bvisited.add(G)
+    old_bv2 = old_bv1 = set()
 
     goal_route = []
 
@@ -105,55 +119,69 @@ def solve_slide(board):
         newstate = bytearray(state)
         newstate[from_], newstate[to_] = state[to_], state[from_]
         newstate = bytes(newstate)
-        if newstate == G:
-            print("Goal!:", route+d)
-            goal_route.append(route+d)
+        #if newstate == G:
+        #    debug("Goal!:", route+d)
+        #    goal_route.append(route+d)
         if newstate in visited:
             return
         visited.add(newstate)
         q.append((to_, newstate, route+d))
         return newstate
 
-    step = 0
-    while True:
+    for step in xrange(1,15):
         nq = deque()
-        old_v2 = old_v1
         old_v1 = set(visited)
-        step += 1
-        print("step:", step, "visited:", len(visited), "queue:", len(Q))
+        debug("step:", step, "visited:", len(visited), "queue:", len(Q))
         while Q:
             pos, state, route = Q.popleft()
             if state in bvisited:
-                print("match")
-                break
-
+                answer = join_route(route, state, BQ)
+                goal_route.append(answer)
+                debug("match:", answer)
+                continue
             trymove(pos, pos-W, 'U', visited, nq)
-            trymove(pos, pos+W, 'D', visited, nq)
             trymove(pos, pos-1, 'L', visited, nq)
+            trymove(pos, pos+W, 'D', visited, nq)
             trymove(pos, pos+1, 'R', visited, nq)
+        if goal_route: return goal_route
         visited -= old_v2
+        old_v2 = old_v1
         Q = nq
-        if goal_route:
-            break
 
+        debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ))
+        nq = deque()
+        old_bv1 = set(bvisited)
         while BQ:
-            break
-            #pos, state, route = BQ.popleft()
-            #if state in visited:
-            #    print("match")
-            #    break
-            #if lc % 10000 == 0:
-            #    print('back', len(route), len(BQ), len(bvisited)) 
-            #trymove(pos, pos-W, 'D', bvisited, BQ)
-            #trymove(pos, pos+W, 'U', bvisited, BQ)
-            #trymove(pos, pos-1, 'R', bvisited, BQ)
-            #trymove(pos, pos+1, 'L', bvisited, BQ)
+            pos, state, route = BQ.popleft()
+            if state in visited:
+                answer = join_route_back(route, state, Q)
+                goal_route.append(answer)
+                debug("back match:", answer)
+                continue
+            trymove(pos, pos-W, 'D', bvisited, nq)
+            trymove(pos, pos-1, 'R', bvisited, nq)
+            trymove(pos, pos+W, 'U', bvisited, nq)
+            trymove(pos, pos+1, 'L', bvisited, nq)
+        if goal_route: return goal_route
+        bvisited -= old_bv2
+        old_bv2 = old_bv1
+        BQ = nq
     return goal_route
 
 def test():
     #test_board = Board(3,3,b"168452=30")
     test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
+
+    debug(str(test_board))
     solve_slide(test_board)
 
+def main():
+    limits, boards = read_problem()
+    for i, b in enumerate(boards):
+        debug("start solving", i)
+        routes = solve_slide(b)
+        print(i, repr(routes))
+
 if __name__ == '__main__':
-    test()
+    #test()
+    main()
