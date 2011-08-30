@@ -19,13 +19,65 @@ class Board(object):
         self.state = state
 
     def __str__(self):
-        w = self.w
-        h = self.h
-        buf = StringIO()
-        for i in xrange(0, w*h, w):
-            l = self.state[i:i+w].replace('0', ' ')
-            buf.write(l+'\n')
-        return buf.getvalue()
+        return print_board(self.w, self.h, self.state)
+
+def print_board(w, h, state):
+    buf = StringIO()
+    for i in xrange(0, w*h, w):
+        l = state[i:i+w].replace('0', ' ')
+        buf.write(l+'\n')
+    return buf.getvalue()
+
+def check_route(board, route):
+    w = board.w
+    h = board.h
+    state = bytearray(board.state)
+    pos = board.state.index('0')
+
+    for c in route:
+        if c == 'D':
+            npos = pos+w
+        elif c == 'U':
+            npos = pos-w
+        elif c == 'L':
+            npos = pos-1
+        else: #R
+            npos = pos+1
+        state[pos], state[npos] = state[npos], state[pos]
+        pos = npos
+
+    expected = make_goal(board.state)
+    result = bytes(state)
+    return expected == result
+
+def trace_route(board, route):
+    w = board.w
+    h = board.h
+    state = bytearray(board.state)
+
+    print("initial state")
+    print(print_board(w, h, board.state))
+
+    pos = board.state.index('0')
+
+    for i in xrange(0, len(route), 2):
+        subr = route[i:i+2]
+        print("trace:", subr)
+        for c in route[i:i+2]:
+            if c == 'D':
+                npos = pos+w
+            elif c == 'U':
+                npos = pos-w
+            elif c == 'L':
+                npos = pos-1
+            else: #R
+                npos = pos+1
+
+            state[pos], state[npos] = state[npos], state[pos]
+            pos = npos
+        print(print_board(w, h, bytes(state)))
+
+
 
 # limits are L,R,U,D
 
@@ -108,7 +160,7 @@ def solve_slide(board):
     G = make_goal(S)
     debug("Goal:", G)
 
-    dist_limit = dist(W,H, board.state, G) + 22
+    dist_limit_b = dist_limit = dist(W,H, board.state, G) + 22
 
     Q = deque()
     state = board.state
@@ -127,9 +179,8 @@ def solve_slide(board):
 
     goal_route = []
 
-    # moving functions.
-    # `pos`, `state` and `route` are enclosed.
-    def trymove(from_, to_, d, visited, q, rvisited, remain, joinfun, goal):
+    def trymove(from_, to_, d, visited, q, rvisited, remain,
+                joinfun, goal, limit):
         if not(0 <= to_ < Z) or state[to_] == '=':
             return
         newstate = bytearray(state)
@@ -144,30 +195,28 @@ def solve_slide(board):
             goal_route.append(ans)
             return
 
-        if dist(W,H,newstate,goal) < dist_limit:
+        if dist(W,H,newstate,goal) < limit:
             visited.add(newstate)
             q.append((to_, newstate, route+d))
             return newstate
 
-    for step in xrange(1,41):
-        if len(Q)+len(BQ) > 800000:
+    for step in xrange(1,100):
+        if len(Q) > 250000:
             hist = defaultdict(int)
             for pos,state,route in Q:
                 hist[dist(W,H,state,G)] += 1
-            for pos,state,route in BQ:
-                hist[dist(W,H,state,S)] += 1
             k = sorted(hist)
             z = 0
             for i in k:
-                if z+hist[i] > 500000:
+                if z+hist[i] > 250000:
                     dist_limit = i
                     break
                 z += hist[i]
-            print("dist limit:", dist_limit)
 
         nq = deque()
         old_v1 = set(visited)
-        debug("step:", step, "visited:", len(visited), "queue:", len(Q))
+        debug("fwrd step:", step, "visited:", len(visited), "queue:", len(Q),
+              "limit:", dist_limit)
         while Q:
             pos, state, route = Q.popleft()
             if dist(W,H,state,G) > dist_limit:
@@ -177,31 +226,55 @@ def solve_slide(board):
                 goal_route.append(answer)
                 debug("match:", answer)
                 continue
-            new = trymove(pos, pos-W, 'U', visited, nq, bvisited, BQ, join_route, G)
-            new = trymove(pos, pos-1, 'L', visited, nq, bvisited, BQ, join_route, G)
-            new = trymove(pos, pos+W, 'D', visited, nq, bvisited, BQ, join_route, G)
-            new = trymove(pos, pos+1, 'R', visited, nq, bvisited, BQ, join_route, G)
+            trymove(pos, pos-W, 'U', visited, nq, bvisited, BQ,
+                    join_route, G, dist_limit)
+            if pos%W:
+                trymove(pos, pos-1, 'L', visited, nq, bvisited, BQ,
+                        join_route, G, dist_limit)
+            trymove(pos, pos+W, 'D', visited, nq, bvisited, BQ,
+                    join_route, G, dist_limit)
+            if (pos+1)%W:
+                trymove(pos, pos+1, 'R', visited, nq, bvisited, BQ,
+                        join_route, G, dist_limit)
         if goal_route: return goal_route
         visited -= old_v2
         old_v2 = old_v1
         Q = nq
 
-        debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ))
+        if len(BQ) > 250000:
+            hist = defaultdict(int)
+            for pos,state,route in BQ:
+                hist[dist(W,H,state,S)] += 1
+            k = sorted(hist)
+            z = 0
+            for i in k:
+                if z+hist[i] > 250000:
+                    dist_limit_b = i
+                    break
+                z += hist[i]
+        debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ),
+              "limit:", dist_limit_b)
         nq = deque()
         old_bv1 = set(bvisited)
         while BQ:
             pos, state, route = BQ.popleft()
-            if dist(W,H,state,S) > dist_limit:
+            if dist(W,H,state,S) > dist_limit_b:
                 continue
             if state in visited:
                 answer = join_route_back(route, state, Q)
                 goal_route.append(answer)
                 debug("back match:", answer)
                 continue
-            trymove(pos, pos-W, 'D', bvisited, nq, visited, Q, join_route_back, S)
-            trymove(pos, pos-1, 'R', bvisited, nq, visited, Q, join_route_back, S)
-            trymove(pos, pos+W, 'U', bvisited, nq, visited, Q, join_route_back, S)
-            trymove(pos, pos+1, 'L', bvisited, nq, visited, Q, join_route_back, S)
+            trymove(pos, pos-W, 'D', bvisited, nq, visited, Q,
+                    join_route_back, S, dist_limit_b)
+            if pos%W:
+                trymove(pos, pos-1, 'R', bvisited, nq, visited, Q,
+                        join_route_back, S, dist_limit_b)
+            trymove(pos, pos+W, 'U', bvisited, nq, visited, Q,
+                    join_route_back, S, dist_limit_b)
+            if (pos+1)%W:
+                trymove(pos, pos+1, 'L', bvisited, nq, visited, Q,
+                        join_route_back, S, dist_limit_b)
         if goal_route: return goal_route
         bvisited -= old_bv2
         old_bv2 = old_bv1
@@ -224,9 +297,9 @@ def main():
         print(i, repr(routes), file=of)
         of.flush()
 
-def read_routes():
+def read_routes(fn='routes.txt'):
     routes = {}
-    with open('routes2.txt', 'r') as f:
+    with open(fn, 'r') as f:
         for L in f:
             n,r = L.split(None, 1)
             routes[int(n)] = eval(r)
@@ -240,7 +313,14 @@ def print_routes(routes):
             continue
         print(L[0])
 
+def check_routes(boards, routes):
+    for k,v in routes.items():
+        for r in v:
+            print("Checking", k, "route:", r)
+            if not check_route(boards[k], r):
+                trace_route(boards[k], r)
+
 if __name__ == '__main__':
     #test()
-    #main()
-    print_routes(read_routes())
+    main()
+    #print_routes(read_routes())
