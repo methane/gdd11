@@ -20,7 +20,7 @@ def op_x(n):
     return [i//2 for i in n]
 
 def op_y(n):
-    return [i for i in n if i%5==0]
+    return [i for i in n if i%5!=0]
 
 def solve(numbers):
     if not numbers:
