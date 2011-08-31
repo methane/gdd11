@@ -3,7 +3,6 @@ from __future__ import print_function
 from libc.string cimport strchr
 from cpython.bytes cimport PyBytes_FromString
 
-from cStringIO import StringIO
 from collections import defaultdict, deque
 import sys
 
@@ -198,21 +197,3 @@ def solve_slide(board):
 
     return goal_route
 
-def main(fn=None):
-    if fn:
-        of = open('routes-1.txt', 'w')
-    else:
-        of = sys.stdout
-    limits, boards = read_problem()
-    for i, b in enumerate(boards):
-        debug("start solving", i)
-        routes = solve_slide(b)
-        print(i, repr(routes), file=of)
-        of.flush()
-
-if __name__ == '__main__':
-    main()
-    #result = {}
-    #for fn in sys.argv[1:]:
-    #    merge_result(result, read_routes(fn))
-    #print_routes(result)

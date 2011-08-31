@@ -319,6 +319,7 @@ def test():
     solve_slide(test_board)
 
 def main():
+    from _slide import solve_slide
     of = open('routes-1.txt', 'w')
     limits, boards = read_problem()
     for i, b in enumerate(boards):
@@ -359,8 +360,8 @@ def check_routes(boards, routes):
 
 if __name__ == '__main__':
     #test()
-    #main()
-    result = {}
-    for fn in sys.argv[1:]:
-        merge_result(result, read_routes(fn))
-    print_routes(result)
+    main()
+    #result = {}
+    #for fn in sys.argv[1:]:
+    #    merge_result(result, read_routes(fn))
+    #print_routes(result)

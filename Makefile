@@ -1,6 +1,3 @@
-slide: slide.pyx
-	cython --embed slide.pyx
-	gcc -O3 `python-config --cflags --libs` -o slide slide.c
-
-run: slide
-	./slide
+_slide.so: _slide.pyx
+	cython _slide.pyx
+	gcc `python-config --cflags --ldflags` -fPIC -O3 -shared -o _slide.so _slide.c
