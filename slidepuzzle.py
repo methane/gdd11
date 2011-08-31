@@ -320,15 +320,41 @@ def test():
     debug(str(test_board))
     solve_slide(test_board)
 
-def main():
+def solve(which=None):
     from _slide import solve_slide
     of = open('routes-1.txt', 'w')
     limits, boards = read_problem()
-    for i, b in enumerate(boards):
+    if which is None:
+        which = range(len(boards))
+
+    for i in which:
+        b = boards[i]
         debug("start solving", i)
         routes = solve_slide(b)
         print(i, repr(routes), file=of)
         of.flush()
+
+def main():
+    cmd = sys.argv[1]
+
+    if cmd == "solve":
+        if len(sys.argv) > 2:
+            which = []
+            for arg in sys.argv[2:]:
+                if '-' in arg:
+                    s,e = arg.split('-')
+                    if s and e:
+                        which.extend(range(int(s), int(e)))
+                    elif s:
+                        which.extend(range(int(s), 5000))
+                    elif e:
+                        which.extend(range(0, int(e)))
+                else:
+                    which.append(int(arg))
+            solve(which)
+        else:
+            solve()
+
 
 def merge_result(l, r):
     for k in r:

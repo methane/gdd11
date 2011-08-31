@@ -55,8 +55,8 @@ cdef int dist(int w, int h, bytes from_, bytes to_):
     return dist
 
 
-def solve_slide(board):
-    cdef int W, H, Z, QMAX
+def solve_slide(board, int QMAX=200000):
+    cdef int W, H, Z
     cdef int dist_limit, dist_limit_b
     cdef bytes state, S, G
     cdef int pos, i
@@ -64,13 +64,13 @@ def solve_slide(board):
     W = board.w
     H = board.h
     Z = W*H
-    QMAX = 100000
 
     S = board.state
     G = make_goal(S)
-    debug("Goal:", G)
+    debug("Start:", S)
+    debug("Goal: ", G)
 
-    dist_limit_b = dist_limit = dist(W, H, G, S) + (W+H)*2
+    dist_limit_b = dist_limit = dist(W, H, G, S) + (W+H)*2 + 20
 
     Q = deque()
     state = board.state
@@ -124,8 +124,6 @@ def solve_slide(board):
                 if z > QMAX:
                     dist_limit = i
                     break
-        else:
-            dist_limit -= 1
 
         nq = deque()
         old_v1 = set(visited)
@@ -165,8 +163,6 @@ def solve_slide(board):
                 if z > QMAX:
                     dist_limit_b = i
                     break
-        else:
-            dist_limit_b -= 1
         debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ),
               "limit:", dist_limit_b)
         nq = deque()
