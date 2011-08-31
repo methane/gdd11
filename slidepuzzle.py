@@ -421,13 +421,14 @@ def cmd_check(args):
         check_routes(boards, data)
 
 def cmd_load(args):
+    limits, boards = read_problem()
     data = load_data()
     for f in args:
         newdata = read_routes(f)
         for k,routes in newdata.iteritems():
             L = data.setdefault(k, [])
             for r in routes:
-                if r not in L:
+                if r not in L and check_route(boards[k], r):
                     L.append(r)
             L.sort(key=len)
     save_data(data)
