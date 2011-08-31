@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding: utf-8
 from __future__ import print_function
 
 from cStringIO import StringIO
@@ -443,9 +445,21 @@ def cmd_missing(args):
         if i not in data:
             print(i)
 
+def cmd_answer(args):
+    data = load_data()
+    answered = 0
+    for i in xrange(5000):
+        d = data.get(i)
+        if d:
+            print(d[0]) # TODO: 手数チェックはまだ.
+            answered += 1
+        else:
+            print()
+    debug("answerd:", answered)
+
 def main():
     if len(sys.argv) < 2:
-        debug("commands: solve load dump print missing")
+        debug("commands: solve load dump answer missing")
         return
 
     cmd = sys.argv[1]
