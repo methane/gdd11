@@ -235,6 +235,8 @@ def solve_slide(board):
                 if z > QMAX:
                     dist_limit = i
                     break
+        else:
+            dist_limit -= 1
 
         nq = deque()
         old_v1 = set(visited)
@@ -274,6 +276,8 @@ def solve_slide(board):
                 if z > QMAX:
                     dist_limit_b = i
                     break
+        else:
+            dist_limit_b -= 1
         debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ),
               "limit:", dist_limit_b)
         nq = deque()
