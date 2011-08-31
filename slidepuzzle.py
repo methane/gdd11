@@ -6,6 +6,7 @@ import os
 import sys
 import json
 from pprint import pprint
+import pickle
 
 import gc
 gc.disable()
@@ -69,13 +70,13 @@ def load_data():
     if not os.path.exists(DATAFILE):
         return {}
     with open(DATAFILE, 'rb') as f:
-        return json.load(f)
+        return pickle.load(f)
 
 def save_data(data):
     if os.path.exists(DATAFILE):
         os.rename(DATAFILE, DATAFILE + '.old')
     with open(DATAFILE, 'wb') as f:
-        json.dump(data, f)
+        pickle.dump(data, f)
 
 
 def trace_route(board, route):
@@ -419,9 +420,31 @@ def cmd_check(args):
         data = load_data()
         check_routes(boards, data)
 
+def cmd_load(args):
+    data = load_data()
+    for f in args:
+        newdata = read_routes(f)
+        for k,routes in newdata.iteritems():
+            L = data.setdefault(k, [])
+            for r in routes:
+                if r not in L:
+                    L.append(r)
+            L.sort(key=len)
+    save_data(data)
+
+def cmd_dump(args):
+    data = load_data()
+    pprint(data)
+
+def cmd_missing(args):
+    data = load_data()
+    for i in xrange(5000):
+        if i not in data:
+            print(i)
+
 def main():
     if len(sys.argv) < 2:
-        debug("commands: solve load print")
+        debug("commands: solve load dump print missing")
         return
 
     cmd = sys.argv[1]
