@@ -426,10 +426,13 @@ def cmd_load(args):
     limits, boards = read_problem()
     data = load_data()
     for f in args:
+        debug("Loading:", f)
         newdata = read_routes(f)
         for k,routes in newdata.iteritems():
             L = data.setdefault(k, [])
             for r in routes:
+                if not isinstance(r, bytes):
+                    continue
                 if r not in L and check_route(boards[k], r):
                     L.append(r)
             L.sort(key=len)
