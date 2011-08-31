@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+from libc.string cimport strchr
+from cpython.bytes cimport PyBytes_FromString
+
 from cStringIO import StringIO
 from collections import defaultdict
 import sys
@@ -139,47 +142,36 @@ def join_route_back(broute, state, remain):
         if state == s:
             return r + broute[::-1]
 
-def dist(w,h,from_,to_):
-    dist = 0
+cdef int _abs(int x):
+    if x < 0: return -x
+    return x
+
+cdef extern from *:
+    ctypedef char const_char "const char"
+
+cdef int dist(int w, int h, bytes from_, bytes to_):
+    cdef int dist=0, i, c, index
+    cdef char *f, *t
+    f = from_
+    t = to_
     for i in xrange(w*h):
-        c = from_[i]
-        if c in '=0':
+        c = f[i]
+        if c in b'=0':
             continue
-        index = to_.index(c)
-        dist += abs(i//w - index//w)
-        dist += abs(i%w - index%w)
+        for index in xrange(w*h):
+            if t[index] == c:
+                break
+        dist += _abs(i//w - index//w)
+        dist += _abs(i%w - index%w)
     return dist
 
-def make_dist_fun(w, h, target):
-    s = """\
-def dist(state):
-    d = 0
-    abs_ = abs
-    ind = state.index
-
-"""
-    for i in xrange(w*h):
-        c = target[i]
-        if c in '0=':
-            continue
-        x = i%w
-        y = i//w
-        s += """\
-    pos = ind('{c}')
-    d += abs_(pos//{w} - {y})
-    d += abs_(pos% {w} - {x})
-""".format(**vars())
-    s += """\
-    return d
-"""
-    #print("dist function")
-    #print(s)
-    #print("end")
-    env = {}
-    exec s in env
-    return env['dist']
 
 def solve_slide(board):
+    cdef int W, H, Z, QMAX
+    cdef int dist_limit, dist_limit_b
+    cdef bytes state, S, G
+    cdef int pos, i
+
     W = board.w
     H = board.h
     Z = W*H
@@ -189,10 +181,7 @@ def solve_slide(board):
     G = make_goal(S)
     debug("Goal:", G)
 
-    fwd_dist = make_dist_fun(W, H, G)
-    back_dist = make_dist_fun(W, H, S)
-
-    dist_limit_b = dist_limit = fwd_dist(S) + (W+H)*2
+    dist_limit_b = dist_limit = dist(W, H, G, S) + (W+H)*2
 
     Q = deque()
     state = board.state
@@ -211,13 +200,17 @@ def solve_slide(board):
 
     goal_route = []
 
-    def trymove(from_, to_, d, visited, q, rvisited, remain,
-                joinfun, distfun, limit):
-        if not(0 <= to_ < Z) or state[to_] == '=':
+    def trymove(int W, int H, bytes state, int from_, int to_,
+                 bytes d, set visited, q, set rvisited, remain,
+                 joinfun, bytes goal, int limit):
+        cdef char *pc
+
+        if not(0 <= to_ < Z) or state[to_] == b'=':
             return
-        newstate = bytearray(state)
-        newstate[from_], newstate[to_] = state[to_], state[from_]
-        newstate = bytes(newstate)
+
+        newstate = PyBytes_FromString(state)
+        pc = newstate
+        pc[from_], pc[to_] = pc[to_], pc[from_]
 
         if newstate in visited:
             return
@@ -227,16 +220,15 @@ def solve_slide(board):
             goal_route.append(ans)
             return
 
-        if distfun(newstate) < limit:
+        if dist(W, H, newstate, goal) < limit:
             visited.add(newstate)
             q.append((to_, newstate, route+d))
-            return newstate
 
-    for step in xrange(1,100):
+    for step in xrange(1,200):
         if len(Q) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in Q:
-                hist[fwd_dist(state)] += 1
+                hist[dist(W, H, state, G)] += 1
             z = 0
             for i in sorted(hist):
                 z += hist[i]
@@ -250,23 +242,23 @@ def solve_slide(board):
               "limit:", dist_limit)
         while Q:
             pos, state, route = Q.popleft()
-            if fwd_dist(state) > dist_limit:
+            if dist(W,H,state,G) > dist_limit:
                 continue
             if state in bvisited:
                 answer = join_route(route, state, BQ)
                 goal_route.append(answer)
                 debug("match:", answer)
                 continue
-            trymove(pos, pos-W, 'U', visited, nq, bvisited, BQ,
-                    join_route, fwd_dist, dist_limit)
+            trymove(W,H,state, pos, pos-W, 'U', visited, nq, bvisited, BQ,
+                    join_route, G, dist_limit)
             if pos%W:
-                trymove(pos, pos-1, 'L', visited, nq, bvisited, BQ,
-                        join_route, fwd_dist, dist_limit)
-            trymove(pos, pos+W, 'D', visited, nq, bvisited, BQ,
-                    join_route, fwd_dist, dist_limit)
+                trymove(W,H,state, pos, pos-1, 'L', visited, nq, bvisited, BQ,
+                        join_route, G, dist_limit)
+            trymove(W,H,state, pos, pos+W, 'D', visited, nq, bvisited, BQ,
+                    join_route, G, dist_limit)
             if (pos+1)%W:
-                trymove(pos, pos+1, 'R', visited, nq, bvisited, BQ,
-                        join_route, fwd_dist, dist_limit)
+                trymove(W,H,state, pos, pos+1, 'R', visited, nq, bvisited, BQ,
+                        join_route, G, dist_limit)
         if goal_route: return goal_route
         visited -= old_v2
         old_v2 = old_v1
@@ -275,7 +267,7 @@ def solve_slide(board):
         if len(BQ) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in BQ:
-                hist[back_dist(state)] += 1
+                hist[dist(W,H,state,S)] += 1
             z = 0
             for i in sorted(hist):
                 z += hist[i]
@@ -288,23 +280,23 @@ def solve_slide(board):
         old_bv1 = set(bvisited)
         while BQ:
             pos, state, route = BQ.popleft()
-            if back_dist(state) > dist_limit_b:
+            if dist(W,H,state,S) > dist_limit_b:
                 continue
             if state in visited:
                 answer = join_route_back(route, state, Q)
                 goal_route.append(answer)
                 debug("back match:", answer)
                 continue
-            trymove(pos, pos-W, 'D', bvisited, nq, visited, Q,
-                    join_route_back, back_dist, dist_limit_b)
+            trymove(W,H,state, pos, pos-W, 'D', bvisited, nq, visited, Q,
+                    join_route_back, S, dist_limit_b)
             if pos%W:
-                trymove(pos, pos-1, 'R', bvisited, nq, visited, Q,
-                        join_route_back, back_dist, dist_limit_b)
-            trymove(pos, pos+W, 'U', bvisited, nq, visited, Q,
-                    join_route_back, back_dist, dist_limit_b)
+                trymove(W,H,state, pos, pos-1, 'R', bvisited, nq, visited, Q,
+                        join_route_back, S, dist_limit_b)
+            trymove(W,H,state, pos, pos+W, 'U', bvisited, nq, visited, Q,
+                    join_route_back, S, dist_limit_b)
             if (pos+1)%W:
-                trymove(pos, pos+1, 'L', bvisited, nq, visited, Q,
-                        join_route_back, back_dist, dist_limit_b)
+                trymove(W,H,state, pos, pos+1, 'L', bvisited, nq, visited, Q,
+                        join_route_back, S, dist_limit_b)
         if goal_route: return goal_route
         bvisited -= old_bv2
         old_bv2 = old_bv1
@@ -319,7 +311,8 @@ def test():
     solve_slide(test_board)
 
 def main():
-    of = open('routes-1.txt', 'w')
+    #of = open('routes-1.txt', 'w')
+    of = sys.stdout
     limits, boards = read_problem()
     for i, b in enumerate(boards):
         debug("start solving", i)
@@ -359,8 +352,8 @@ def check_routes(boards, routes):
 
 if __name__ == '__main__':
     #test()
-    #main()
-    result = {}
-    for fn in sys.argv[1:]:
-        merge_result(result, read_routes(fn))
-    print_routes(result)
+    main()
+    #result = {}
+    #for fn in sys.argv[1:]:
+    #    merge_result(result, read_routes(fn))
+    #print_routes(result)
