@@ -150,17 +150,49 @@ def dist(w,h,from_,to_):
         dist += abs(i%w - index%w)
     return dist
 
+def make_dist_fun(w, h, target):
+    s = """\
+def dist(state):
+    d = 0
+    abs_ = abs
+    ind = state.index
+
+"""
+    for i in xrange(w*h):
+        c = target[i]
+        if c in '0=':
+            continue
+        x = i%w
+        y = i//w
+        s += """\
+    pos = ind('{c}')
+    d += abs_(pos//{w} - {y})
+    d += abs_(pos% {w} - {x})
+""".format(**vars())
+    s += """\
+    return d
+"""
+    #print("dist function")
+    #print(s)
+    #print("end")
+    env = {}
+    exec s in env
+    return env['dist']
 
 def solve_slide(board):
     W = board.w
     H = board.h
     Z = W*H
+    QMAX = 100000
 
     S = board.state
     G = make_goal(S)
     debug("Goal:", G)
 
-    dist_limit_b = dist_limit = dist(W,H, board.state, G) + 22
+    fwd_dist = make_dist_fun(W, H, G)
+    back_dist = make_dist_fun(W, H, S)
+
+    dist_limit_b = dist_limit = fwd_dist(S) + (W+H)*2
 
     Q = deque()
     state = board.state
@@ -180,7 +212,7 @@ def solve_slide(board):
     goal_route = []
 
     def trymove(from_, to_, d, visited, q, rvisited, remain,
-                joinfun, goal, limit):
+                joinfun, distfun, limit):
         if not(0 <= to_ < Z) or state[to_] == '=':
             return
         newstate = bytearray(state)
@@ -195,23 +227,22 @@ def solve_slide(board):
             goal_route.append(ans)
             return
 
-        if dist(W,H,newstate,goal) < limit:
+        if distfun(newstate) < limit:
             visited.add(newstate)
             q.append((to_, newstate, route+d))
             return newstate
 
     for step in xrange(1,100):
-        if len(Q) > 250000:
+        if len(Q) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in Q:
-                hist[dist(W,H,state,G)] += 1
-            k = sorted(hist)
+                hist[fwd_dist(state)] += 1
             z = 0
-            for i in k:
-                if z+hist[i] > 250000:
+            for i in sorted(hist):
+                z += hist[i]
+                if z > QMAX:
                     dist_limit = i
                     break
-                z += hist[i]
 
         nq = deque()
         old_v1 = set(visited)
@@ -219,7 +250,7 @@ def solve_slide(board):
               "limit:", dist_limit)
         while Q:
             pos, state, route = Q.popleft()
-            if dist(W,H,state,G) > dist_limit:
+            if fwd_dist(state) > dist_limit:
                 continue
             if state in bvisited:
                 answer = join_route(route, state, BQ)
@@ -227,38 +258,37 @@ def solve_slide(board):
                 debug("match:", answer)
                 continue
             trymove(pos, pos-W, 'U', visited, nq, bvisited, BQ,
-                    join_route, G, dist_limit)
+                    join_route, fwd_dist, dist_limit)
             if pos%W:
                 trymove(pos, pos-1, 'L', visited, nq, bvisited, BQ,
-                        join_route, G, dist_limit)
+                        join_route, fwd_dist, dist_limit)
             trymove(pos, pos+W, 'D', visited, nq, bvisited, BQ,
-                    join_route, G, dist_limit)
+                    join_route, fwd_dist, dist_limit)
             if (pos+1)%W:
                 trymove(pos, pos+1, 'R', visited, nq, bvisited, BQ,
-                        join_route, G, dist_limit)
+                        join_route, fwd_dist, dist_limit)
         if goal_route: return goal_route
         visited -= old_v2
         old_v2 = old_v1
         Q = nq
 
-        if len(BQ) > 250000:
+        if len(BQ) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in BQ:
-                hist[dist(W,H,state,S)] += 1
-            k = sorted(hist)
+                hist[back_dist(state)] += 1
             z = 0
-            for i in k:
-                if z+hist[i] > 250000:
+            for i in sorted(hist):
+                z += hist[i]
+                if z > QMAX:
                     dist_limit_b = i
                     break
-                z += hist[i]
         debug("back step:", step, "visited:", len(bvisited), "queue:", len(BQ),
               "limit:", dist_limit_b)
         nq = deque()
         old_bv1 = set(bvisited)
         while BQ:
             pos, state, route = BQ.popleft()
-            if dist(W,H,state,S) > dist_limit_b:
+            if back_dist(state) > dist_limit_b:
                 continue
             if state in visited:
                 answer = join_route_back(route, state, Q)
@@ -266,15 +296,15 @@ def solve_slide(board):
                 debug("back match:", answer)
                 continue
             trymove(pos, pos-W, 'D', bvisited, nq, visited, Q,
-                    join_route_back, S, dist_limit_b)
+                    join_route_back, back_dist, dist_limit_b)
             if pos%W:
                 trymove(pos, pos-1, 'R', bvisited, nq, visited, Q,
-                        join_route_back, S, dist_limit_b)
+                        join_route_back, back_dist, dist_limit_b)
             trymove(pos, pos+W, 'U', bvisited, nq, visited, Q,
-                    join_route_back, S, dist_limit_b)
+                    join_route_back, back_dist, dist_limit_b)
             if (pos+1)%W:
                 trymove(pos, pos+1, 'L', bvisited, nq, visited, Q,
-                        join_route_back, S, dist_limit_b)
+                        join_route_back, back_dist, dist_limit_b)
         if goal_route: return goal_route
         bvisited -= old_bv2
         old_bv2 = old_bv1
@@ -296,6 +326,13 @@ def main():
         routes = solve_slide(b)
         print(i, repr(routes), file=of)
         of.flush()
+
+def merge_result(l, r):
+    for k in r:
+        if k not in l:
+            l[k] = r[k]
+        else:
+            l[k].extend(r[k])
 
 def read_routes(fn='routes.txt'):
     routes = {}
@@ -322,5 +359,8 @@ def check_routes(boards, routes):
 
 if __name__ == '__main__':
     #test()
-    main()
-    #print_routes(read_routes())
+    #main()
+    result = {}
+    for fn in sys.argv[1:]:
+        merge_result(result, read_routes(fn))
+    print_routes(result)
