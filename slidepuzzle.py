@@ -1,9 +1,12 @@
 from __future__ import print_function
 
 from cStringIO import StringIO
-from collections import defaultdict
+from collections import defaultdict, deque
+import os
 import sys
+import json
 from pprint import pprint
+
 import gc
 gc.disable()
 
@@ -36,21 +39,44 @@ def check_route(board, route):
     state = bytearray(board.state)
     pos = board.state.index('0')
 
-    for c in route:
-        if c == 'D':
-            npos = pos+w
-        elif c == 'U':
-            npos = pos-w
-        elif c == 'L':
-            npos = pos-1
-        else: #R
-            npos = pos+1
-        state[pos], state[npos] = state[npos], state[pos]
-        pos = npos
+    try:
+        for c in route:
+            if c == 'D':
+                npos = pos+w
+            elif c == 'U':
+                npos = pos-w
+            elif c == 'L':
+                if pos%w == 0:
+                    return False
+                npos = pos-1
+            else: #R
+                if (pos+1)%w == 0:
+                    return False
+                npos = pos+1
+            state[pos], state[npos] = state[npos], state[pos]
+            pos = npos
+    except IndexError:
+        return False
 
     expected = make_goal(board.state)
     result = bytes(state)
     return expected == result
+
+
+DATAFILE = 'slide.data'
+
+def load_data():
+    if not os.path.exists(DATAFILE):
+        return {}
+    with open(DATAFILE, 'rb') as f:
+        return json.load(f)
+
+def save_data(data):
+    if os.path.exists(DATAFILE):
+        os.rename(DATAFILE, DATAFILE + '.old')
+    with open(DATAFILE, 'wb') as f:
+        json.dump(data, f)
+
 
 def trace_route(board, route):
     w = board.w
@@ -87,7 +113,7 @@ def read_problem():
     with open('problems.txt') as f:
         L = f.readline().strip()
         LIMITS = map(int, L.split())
-        debug('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
+        #debug('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
 
         num_problems = int(f.readline().strip())
 
@@ -101,8 +127,6 @@ def read_problem():
 
     return LIMITS, boards
 
-
-from collections import deque
 
 def make_goal(state):
     N = len(state)
@@ -335,27 +359,6 @@ def solve(which=None):
         print(i, repr(routes), file=of)
         of.flush()
 
-def main():
-    cmd = sys.argv[1]
-
-    if cmd == "solve":
-        if len(sys.argv) > 2:
-            which = []
-            for arg in sys.argv[2:]:
-                if '-' in arg:
-                    s,e = arg.split('-')
-                    if s and e:
-                        which.extend(range(int(s), int(e)))
-                    elif s:
-                        which.extend(range(int(s), 5000))
-                    elif e:
-                        which.extend(range(0, int(e)))
-                else:
-                    which.append(int(arg))
-            solve(which)
-        else:
-            solve()
-
 
 def merge_result(l, r):
     for k in r:
@@ -383,14 +386,49 @@ def print_routes(routes):
 def check_routes(boards, routes):
     for k,v in routes.items():
         for r in v:
-            print("Checking", k, "route:", r)
             if not check_route(boards[k], r):
+                debug("Checking", k, "route:", r)
                 trace_route(boards[k], r)
 
+def cmd_solve(args):
+    if args:
+        which = []
+        for arg in args:
+            if '-' in arg:
+                s,e = arg.split('-')
+                if s and e:
+                    which.extend(range(int(s), int(e)))
+                elif s:
+                    which.extend(range(int(s), 5000))
+                elif e:
+                    which.extend(range(0, int(e)))
+            else:
+                which.append(int(arg))
+        solve(which)
+    else:
+        solve()
+
+def cmd_check(args):
+    limits, boards = read_problem()
+
+    if args:
+        for fn in args:
+            data = read_routes(fn)
+            check_routes(boards, data)
+    else:
+        data = load_data()
+        check_routes(boards, data)
+
+def main():
+    if len(sys.argv) < 2:
+        debug("commands: solve load print")
+        return
+
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
+
+    fun = globals()['cmd_' + cmd]
+    fun(args)
+
 if __name__ == '__main__':
-    #test()
     main()
-    #result = {}
-    #for fn in sys.argv[1:]:
-    #    merge_result(result, read_routes(fn))
-    #print_routes(result)
