@@ -4,6 +4,8 @@ from cStringIO import StringIO
 from collections import defaultdict
 import sys
 from pprint import pprint
+import gc
+gc.disable()
 
 def debug(*args):
     print(*args, file=sys.stderr)
