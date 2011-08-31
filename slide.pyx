@@ -4,106 +4,14 @@ from libc.string cimport strchr
 from cpython.bytes cimport PyBytes_FromString
 
 from cStringIO import StringIO
-from collections import defaultdict
+from collections import defaultdict, deque
 import sys
-from pprint import pprint
 
 def debug(*args):
     print(*args, file=sys.stderr)
 
-PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
+PLATES = b'123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
 
-class Board(object):
-    __slots__ = ['w', 'h', 'state']
-
-    def __init__(self, w, h, state):
-        self.w = w
-        self.h = h
-        self.state = state
-
-    def __str__(self):
-        return print_board(self.w, self.h, self.state)
-
-def print_board(w, h, state):
-    buf = StringIO()
-    for i in xrange(0, w*h, w):
-        l = state[i:i+w].replace('0', ' ')
-        buf.write(l+'\n')
-    return buf.getvalue()
-
-def check_route(board, route):
-    w = board.w
-    h = board.h
-    state = bytearray(board.state)
-    pos = board.state.index('0')
-
-    for c in route:
-        if c == 'D':
-            npos = pos+w
-        elif c == 'U':
-            npos = pos-w
-        elif c == 'L':
-            npos = pos-1
-        else: #R
-            npos = pos+1
-        state[pos], state[npos] = state[npos], state[pos]
-        pos = npos
-
-    expected = make_goal(board.state)
-    result = bytes(state)
-    return expected == result
-
-def trace_route(board, route):
-    w = board.w
-    h = board.h
-    state = bytearray(board.state)
-
-    print("initial state")
-    print(print_board(w, h, board.state))
-
-    pos = board.state.index('0')
-
-    for i in xrange(0, len(route), 2):
-        subr = route[i:i+2]
-        print("trace:", subr)
-        for c in route[i:i+2]:
-            if c == 'D':
-                npos = pos+w
-            elif c == 'U':
-                npos = pos-w
-            elif c == 'L':
-                npos = pos-1
-            else: #R
-                npos = pos+1
-
-            state[pos], state[npos] = state[npos], state[pos]
-            pos = npos
-        print(print_board(w, h, bytes(state)))
-
-
-
-# limits are L,R,U,D
-
-def read_problem():
-    with open('problems.txt') as f:
-        L = f.readline().strip()
-        LIMITS = map(int, L.split())
-        debug('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
-
-        num_problems = int(f.readline().strip())
-
-        boards = []
-        for L in f:
-            L = L.strip()
-            w, h, state = L.split(',')
-            boards.append(Board(int(w), int(h), state))
-
-        assert len(boards) == num_problems
-
-    return LIMITS, boards
-
-
-from collections import deque
 
 def make_goal(state):
     N = len(state)
@@ -113,24 +21,6 @@ def make_goal(state):
             state[i] = PLATES[i]
     state[-1] = '0'
     return bytes(state)
-
-
-def better_route(L, R):
-    lc = L.count
-    rc = R.count
-    return (lc('L') <= rc('L') and
-            lc('R') <= rc('R') and
-            lc('U') <= rc('U') and
-            lc('D') <= rc('D'))
-
-def append_route(routes, new_route):
-    for old_route in routes:
-        if better_route(old_route, new_route):
-            return
-        if better_route(new_route, old_route):
-            routes[routes.index(old_route)] = new_route
-            return
-    routes.append(new_route)
 
 def join_route(route, state, remain):
     for p, s, r in remain:
@@ -305,18 +195,14 @@ def solve_slide(board):
         bvisited -= old_bv2
         old_bv2 = old_bv1
         BQ = nq
+
     return goal_route
 
-def test():
-    #test_board = Board(3,3,b"168452=30")
-    test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
-
-    debug(str(test_board))
-    solve_slide(test_board)
-
-def main():
-    #of = open('routes-1.txt', 'w')
-    of = sys.stdout
+def main(fn=None):
+    if fn:
+        of = open('routes-1.txt', 'w')
+    else:
+        of = sys.stdout
     limits, boards = read_problem()
     for i, b in enumerate(boards):
         debug("start solving", i)
@@ -324,38 +210,7 @@ def main():
         print(i, repr(routes), file=of)
         of.flush()
 
-def merge_result(l, r):
-    for k in r:
-        if k not in l:
-            l[k] = r[k]
-        else:
-            l[k].extend(r[k])
-
-def read_routes(fn='routes.txt'):
-    routes = {}
-    with open(fn, 'r') as f:
-        for L in f:
-            n,r = L.split(None, 1)
-            routes[int(n)] = eval(r)
-    return routes
-
-def print_routes(routes):
-    for i in xrange(5000):
-        L = routes.get(i)
-        if not L:
-            print()
-            continue
-        print(L[0])
-
-def check_routes(boards, routes):
-    for k,v in routes.items():
-        for r in v:
-            print("Checking", k, "route:", r)
-            if not check_route(boards[k], r):
-                trace_route(boards[k], r)
-
 if __name__ == '__main__':
-    #test()
     main()
     #result = {}
     #for fn in sys.argv[1:]:
