@@ -445,20 +445,32 @@ def cmd_dump(args):
 def cmd_missing(args):
     data = load_data()
     for i in xrange(5000):
-        if i not in data:
+        if i not in data or not(data[i]):
             print(i)
 
 def cmd_answer(args):
+    LIMITS, BOARDS = read_problem()
+    LX, RX, UX, DX = LIMITS
+    L = R = U = D = 0
     data = load_data()
     answered = 0
+    # todo: 手順の短い順に出力する.
     for i in xrange(5000):
-        d = data.get(i)
-        if d:
-            print(d[0]) # TODO: 手数チェックはまだ.
+        d = data.get(i, [])
+        for r in d: # todo: 残り手数を考慮してソートする.
+            lc = r.count('L'); rc = r.count('R')
+            uc = r.count('U'); dc = r.count('D')
+            if lc+L > LX or rc+R > RX or uc+U > UX or dc+D > DX:
+                continue
+            L += lc; R += rc
+            U += uc; D += dc
             answered += 1
+            break
         else:
             print()
-    debug("answerd:", answered)
+    debug("answerd: {answered} L={L}/{LX}, R={R}/{RX}, U={U}/{UX}, D={D}/{DX}".
+          format(**vars()))
+
 
 def main():
     if len(sys.argv) < 2:
