@@ -375,7 +375,11 @@ def read_routes(fn='routes.txt'):
     with open(fn, 'r') as f:
         for L in f:
             n,r = L.split(None, 1)
-            routes[int(n)] = eval(r)
+            n = int(n)
+            r = eval(r)
+            if r:
+                X = routes.setdefault(n, [])
+                X.extend(r)
     return routes
 
 def print_routes(routes):
@@ -462,6 +466,7 @@ def cmd_answer(args):
             uc = r.count('U'); dc = r.count('D')
             if lc+L > LX or rc+R > RX or uc+U > UX or dc+D > DX:
                 continue
+            print(r)
             L += lc; R += rc
             U += uc; D += dc
             answered += 1
