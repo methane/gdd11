@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+cdef extern from *:
+    ctypedef char const_char "const char"
+
 from libc.string cimport strchr
 from cpython.bytes cimport PyBytes_FromString
 
@@ -34,9 +37,6 @@ def join_route_back(broute, state, remain):
 cdef int _abs(int x):
     if x < 0: return -x
     return x
-
-cdef extern from *:
-    ctypedef char const_char "const char"
 
 cdef int dist(int w, int h, bytes from_, bytes to_):
     cdef int dist=0, i, c, index
@@ -114,6 +114,9 @@ def solve_slide(board, int QMAX=200000):
             q.append((to_, newstate, route+d))
 
     for step in xrange(1,200):
+        if not Q or not BQ:
+            debug("No sattes. Give up")
+            break
         if len(Q) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in Q:

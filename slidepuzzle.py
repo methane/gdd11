@@ -322,7 +322,8 @@ def test():
 
 def solve(which=None):
     from _slide import solve_slide
-    of = open('routes-1.txt', 'w')
+    #of = open('routes-1.txt', 'w')
+    of = sys.stdout
     limits, boards = read_problem()
     if which is None:
         which = range(len(boards))
