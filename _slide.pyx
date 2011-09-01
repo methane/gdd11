@@ -241,48 +241,45 @@ cdef int dist_diff(char *state, int pos, int npos, int W):
     return next_dist - prev_dist
 
 
-cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int _dist, int dlimit,
-                   bytes route, int remain, list answer):
-    cdef int nlimit = dlimit - 1
-    cdef int ndist
-
+cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
+                   bytes route, list answer):
     if state in G:
         route += G[state]
         debug("Goal:", route)
         answer.append(route)
-        return 0
+        return 1
 
     if dlimit == 0:
-        return min(_dist, remain)
-    if dlimit < _dist:
-        return min(_dist-dlimit, remain)
+        return 1
 
+    cdef int ndist
+    cdef int nlimit = dlimit - 1
 
     if pos>W and route[-1] !='D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            ndist = _dist + dist_diff(state, pos, npos, W)
-            remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'U', remain, answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'U', answer)
+
     if pos%W and route[-1] !='R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            ndist = _dist + dist_diff(state, pos, npos, W)
-            remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'L', remain, answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'L', answer)
+
     if pos+W<Z and route[-1] !='U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            ndist = _dist + dist_diff(state, pos, npos, W)
-            remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'D', remain, answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'D', answer)
+
     if (pos+1)%W and route[-1] !='L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            ndist = _dist + dist_diff(state, pos, npos, W)
-            remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'R', remain, answer)
-    return remain
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'R', answer)
+
+    return nlimit+1
 
 
 cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route):
@@ -387,7 +384,6 @@ def iterative_deeping(board, int QMAX=400000):
     debug("BFS stopped, start=", start_step, " end=", back_step)
 
     cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes)
-    cdef int _dist = dist(W, Z, S, G)
     cdef bytes s
 
     while not results:
@@ -395,8 +391,8 @@ def iterative_deeping(board, int QMAX=400000):
         for s in fwd_routes:
             route = fwd_routes[s]
             pos = s.index(b'0')
-            _dist = slide_dfs(W, Z, back_routes, pos, s, dist(W,Z,s,G), depth_limit, route, _dist, results)
-        depth_limit += _dist
+            depth_limit = slide_dfs(W, Z, back_routes, pos, s, depth_limit, route, results)
+        depth_limit += 4
 
     return results
 
