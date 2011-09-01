@@ -278,13 +278,11 @@ cdef int slide_dfs(int W, int Z, bytes G, int pos, bytes state, int _dist, int d
                 remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'R', remain, answer, visited)
     return remain
 
-def iterative_deeping(board):
+def iterative_deeping(board, int QMAX=500000):
     """Iterative deeping DFS. But use BFS for some initial steps."""
     cdef int QMAX, W, H, Z
     cdef bytes S,G
     cdef int pos
-
-    QMAX = 200000 # Switch to IDDFS when number of states overs this.
 
     W = board.w
     H = board.h
