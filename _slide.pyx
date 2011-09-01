@@ -1,3 +1,4 @@
+# coding: utf-8
 from __future__ import print_function
 
 cdef extern from *:
@@ -202,49 +203,79 @@ def solve_slide(board, int QMAX=200000):
 
 #### ID DFS
 
-cdef move(bytes state, int pos, int npos):
-    n = bytearray(state)
-    n[pos],n[npos] = n[npos],n[pos]
-    return bytes(n)
+cdef bytes move(char* state, int pos, int npos):
+    n = PyBytes_FromString(state)
+    cdef char *p = n
+    p[pos],p[npos] = n[npos],n[pos]
+    return n
 
-cdef int slide_dfs(int W, int Z, bytes G, int pos, bytes state, int dlimit, bytes route, int remain, list answer, set visited):
+cdef int char_to_gpos(int c):
+    cdef int c1='1', c9='9', ca='A', cz='Z'
+
+    if c1 <= c <= c9:
+        return c-c1;
+    if ca <= c <= cz:
+        return c-ca+9
+    return -1
+
+cdef int dist_diff(char *state, int pos, int npos, int W):
+    u"""state の pos にある空白を npos に移動したときの、
+    マンハッタン距離の変化を返す."""
+
+    # 空白が pos->npos なので、タイルは npos->pos に移動する.
+    cdef int c = state[npos]
+    cdef int gpos = char_to_gpos(c) 
+
+    cdef int prev_dist = _abs(gpos//W - npos//W) + _abs(gpos%W - npos%W)
+    cdef int next_dist = _abs(gpos//W -  pos//W) + _abs(gpos%W -  pos%W)
+
+    return next_dist - prev_dist
+
+
+cdef int slide_dfs(int W, int Z, bytes G, int pos, bytes state, int _dist, int dlimit,
+                   bytes route, int remain, list answer, set visited):
+    cdef int nlimit = dlimit - 1
+    cdef int ndist
+
     if state == G:
         debug("Goal:", route)
         answer.append(route)
         return 0
 
-    cdef int _dist = dist(W, Z, state,G)
     if dlimit == 0:
         return min(_dist, remain)
     if dlimit < _dist:
         return min(_dist-dlimit, remain)
 
-    nlimit = dlimit - 1
 
     if pos>W and route[-1] !='D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
             if ns not in visited:
-                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'U', remain, answer, visited)
+                ndist = _dist + dist_diff(state, pos, npos, W)
+                remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'U', remain, answer, visited)
     if pos%W and route[-1] !='R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
             if ns not in visited:
-                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'L', remain, answer, visited)
+                ndist = _dist + dist_diff(state, pos, npos, W)
+                remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'L', remain, answer, visited)
     if pos+W<Z and route[-1] !='U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
             if ns not in visited:
-                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'D', remain, answer, visited)
+                ndist = _dist + dist_diff(state, pos, npos, W)
+                remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'D', remain, answer, visited)
     if (pos+1)%W and route[-1] !='L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
             if ns not in visited:
-                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'R', remain, answer, visited)
+                ndist = _dist + dist_diff(state, pos, npos, W)
+                remain = slide_dfs(W,Z,G, npos, ns, ndist, nlimit, route+'R', remain, answer, visited)
     return remain
 
 def iterative_deeping(board):
@@ -325,7 +356,7 @@ def iterative_deeping(board):
     while not goal_route:
         debug("Iterative DFS: depth limit =", depth_limit)
         for pos,s,route in Q:
-            _dist = slide_dfs(W, Z, G, pos, s, depth_limit, route, _dist, goal_route, visited)
+            _dist = slide_dfs(W, Z, G, pos, s, dist(W,Z,s,G), depth_limit, route, _dist, goal_route, visited)
         depth_limit += _dist
 
     return goal_route
