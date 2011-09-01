@@ -340,16 +340,144 @@ def solve_slide(board):
         BQ = nq
     return goal_route
 
-def test():
-    #test_board = Board(3,3,b"168452=30")
-    test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
+
+def iterative_deeping(board):
+    """Iterative deeping DFS. But use BFS for some initial steps."""
+    QMAX = 100000 # Switch to IDDFS when number of states overs this.
+
+    W = board.w
+    H = board.h
+    Z = W*H
+
+    S = board.state
+    G = make_goal(S)
+    debug("Goal:", G)
+
+    Q = deque()
+    state = board.state
+    pos = state.index(b'0')
+    Q.append((pos, state, ''))
+    visited = set()
+    visited.add(bytes(state))
+    old_v2 = old_v1 = set()
+
+    goal_route = []
+
+    def trymove(from_, to_, d, visited, q, distfun=None, limit=0):
+        if not(0 <= to_ < Z) or state[to_] == '=':
+            return
+        newstate = bytearray(state)
+        newstate[from_], newstate[to_] = state[to_], state[from_]
+        newstate = bytes(newstate)
+
+        if newstate in visited:
+            return
+
+        if newstate == G:
+            goal_route.append(route+d)
+
+        if distfun and limit and distfun(newstate) >= limit:
+            return
+        visited.add(newstate)
+        q.append((to_, newstate, route+d))
+        return newstate
+
+    # BFS
+    step = 0
+    while len(Q) < QMAX and not goal_route:
+        step += 1
+        nq = deque()
+        old_v1 = set(visited)
+        debug("step:", step, "visited:", len(visited), "queue:", len(Q))
+        while Q:
+            pos, state, route = Q.popleft()
+            trymove(pos, pos-W, 'U', visited, nq)
+            if pos%W:
+                trymove(pos, pos-1, 'L', visited, nq)
+            trymove(pos, pos+W, 'D', visited, nq)
+            if (pos+1)%W:
+                trymove(pos, pos+1, 'R', visited, nq)
+        visited -= old_v2
+        old_v2 = old_v1
+        Q = nq
+
+    if goal_route:
+        return goal_route
+    del old_v1, old_v2
+
+    fwd_dist = make_dist_fun(W, H, G)
+
+    debug("Start iterative deeping.")
+    depth_limit = min(fwd_dist(s[1]) for s in Q)
+
+    def move(state, pos, npos):
+        n = bytearray(state)
+        n[pos],n[npos] = n[npos],n[pos]
+        return bytes(n)
+
+    def slide_dfs(pos, state, dlimit, route, remain, answer):
+        #print(print_board(W, H, state))
+        if state == G:
+            debug("Goal:", route)
+            answer.append(route)
+            return 0
+
+        dist = fwd_dist(state)
+        if dlimit == 0:
+            return min(dist, remain)
+        if dlimit < dist:
+            return min(dist-dlimit, remain)
+
+        nlimit = dlimit - 1
+
+        if pos>W and route[-1] !='D':
+            npos = pos-W
+            if state[npos] != '=':
+                ns = move(state, pos, npos)
+		if ns not in visited:
+                    remain = slide_dfs(npos, ns, nlimit, route+'U', remain, answer)
+        if pos%W and route[-1] !='R':
+            npos = pos-1
+            if state[npos] != '=':
+                ns = move(state, pos, npos)
+		if ns not in visited:
+                    remain = slide_dfs(npos, ns, nlimit, route+'L', remain, answer)
+        if pos+W<Z and route[-1] !='U':
+            npos = pos+W
+            if state[npos] != '=':
+                ns = move(state, pos, npos)
+		if ns not in visited:
+                    remain = slide_dfs(npos, ns, nlimit, route+'D', remain, answer)
+        if (pos+1)%W and route[-1] !='L':
+            npos = pos+1
+            if state[npos] != '=':
+                ns = move(state, pos, npos)
+		if ns not in visited:
+                    remain = slide_dfs(npos, ns, nlimit, route+'R', remain, answer)
+        return remain
+
+    dist = fwd_dist(S)
+
+    while not goal_route:
+        debug("Iterative DFS: depth limit =", depth_limit)
+        for pos,s,route in Q:
+            dist = slide_dfs(pos, s, depth_limit, route, dist, goal_route)
+        depth_limit += dist
+
+    return goal_route
+
+
+def cmd_test(args):
+    test_board = Board(3,2,b"012453")
+    #test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
 
     debug(str(test_board))
-    solve_slide(test_board)
+    print(iterative_deeping(test_board))
 
 def solve(which=None):
-    from _slide import solve_slide
+    #from _slide import solve_slide
     #of = open('routes-1.txt', 'w')
+    solve_slide = iterative_deeping
     of = sys.stdout
     limits, boards = read_problem()
     if which is None:
@@ -361,7 +489,6 @@ def solve(which=None):
         routes = solve_slide(b)
         print(i, repr(routes), file=of)
         of.flush()
-
 
 def merge_result(l, r):
     for k in r:
