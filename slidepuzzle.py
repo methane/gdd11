@@ -343,7 +343,7 @@ def solve_slide(board):
 
 def iterative_deeping(board):
     """Iterative deeping DFS. But use BFS for some initial steps."""
-    QMAX = 100000 # Switch to IDDFS when number of states overs this.
+    QMAX = 200000 # Switch to IDDFS when number of states overs this.
 
     W = board.w
     H = board.h
@@ -475,9 +475,9 @@ def cmd_test(args):
     print(iterative_deeping(test_board))
 
 def solve(which=None):
+    #solve_slide = iterative_deeping
     #from _slide import solve_slide
-    #of = open('routes-1.txt', 'w')
-    solve_slide = iterative_deeping
+    from _slide import iterative_deeping as solve_slide
     of = sys.stdout
     limits, boards = read_problem()
     if which is None:
