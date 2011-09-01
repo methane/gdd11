@@ -280,7 +280,7 @@ cdef int slide_dfs(int W, int Z, bytes G, int pos, bytes state, int _dist, int d
 
 def iterative_deeping(board, int QMAX=500000):
     """Iterative deeping DFS. But use BFS for some initial steps."""
-    cdef int QMAX, W, H, Z
+    cdef int W, H, Z
     cdef bytes S,G
     cdef int pos
 
