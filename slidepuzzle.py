@@ -452,6 +452,10 @@ def cmd_missing(args):
         if i not in data or not(data[i]):
             print(i)
 
+def cmd_solve_missing(args):
+    which = map(int, open(args[0]))
+    solve(which)
+
 def cmd_answer(args):
     LIMITS, BOARDS = read_problem()
     LX, RX, UX, DX = LIMITS
