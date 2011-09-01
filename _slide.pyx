@@ -38,16 +38,19 @@ cdef int _abs(int x):
     if x < 0: return -x
     return x
 
-cdef int dist(int w, int h, bytes from_, bytes to_):
+cdef int dist(int w, int z, bytes from_, bytes to_):
+    """
+    w: width, z: width*height, from_: from state, to_: to state.
+    """
     cdef int dist=0, i, c, index
     cdef char *f, *t
     f = from_
     t = to_
-    for i in xrange(w*h):
+    for i in xrange(z):
         c = f[i]
         if c in b'=0':
             continue
-        for index in xrange(w*h):
+        for index in xrange(z):
             if t[index] == c:
                 break
         dist += _abs(i//w - index//w)
@@ -70,7 +73,7 @@ def solve_slide(board, int QMAX=200000):
     debug("Start:", S)
     debug("Goal: ", G)
 
-    dist_limit_b = dist_limit = dist(W, H, G, S) + (W+H)*2 + 20
+    dist_limit_b = dist_limit = dist(W, Z, G, S) + (W+H)*2 + 20
 
     Q = deque()
     state = board.state
@@ -109,7 +112,7 @@ def solve_slide(board, int QMAX=200000):
             goal_route.append(ans)
             return
 
-        if dist(W, H, newstate, goal) < limit:
+        if dist(W, Z, newstate, goal) < limit:
             visited.add(newstate)
             q.append((to_, newstate, route+d))
 
@@ -120,7 +123,7 @@ def solve_slide(board, int QMAX=200000):
         if len(Q) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in Q:
-                hist[dist(W, H, state, G)] += 1
+                hist[dist(W, Z, state, G)] += 1
             z = 0
             for i in sorted(hist):
                 z += hist[i]
@@ -134,7 +137,7 @@ def solve_slide(board, int QMAX=200000):
               "limit:", dist_limit)
         while Q:
             pos, state, route = Q.popleft()
-            if dist(W,H,state,G) > dist_limit:
+            if dist(W, Z, state,G) > dist_limit:
                 continue
             if state in bvisited:
                 answer = join_route(route, state, BQ)
@@ -159,7 +162,7 @@ def solve_slide(board, int QMAX=200000):
         if len(BQ) > QMAX:
             hist = defaultdict(int)
             for pos,state,route in BQ:
-                hist[dist(W,H,state,S)] += 1
+                hist[dist(W, Z, state,S)] += 1
             z = 0
             for i in sorted(hist):
                 z += hist[i]
@@ -172,7 +175,7 @@ def solve_slide(board, int QMAX=200000):
         old_bv1 = set(bvisited)
         while BQ:
             pos, state, route = BQ.popleft()
-            if dist(W,H,state,S) > dist_limit_b:
+            if dist(W, Z, state,S) > dist_limit_b:
                 continue
             if state in visited:
                 answer = join_route_back(route, state, Q)
@@ -196,6 +199,53 @@ def solve_slide(board, int QMAX=200000):
 
     return goal_route
 
+
+#### ID DFS
+
+cdef move(bytes state, int pos, int npos):
+    n = bytearray(state)
+    n[pos],n[npos] = n[npos],n[pos]
+    return bytes(n)
+
+cdef int slide_dfs(int W, int Z, bytes G, int pos, bytes state, int dlimit, bytes route, int remain, list answer, set visited):
+    if state == G:
+        debug("Goal:", route)
+        answer.append(route)
+        return 0
+
+    cdef int _dist = dist(W, Z, state,G)
+    if dlimit == 0:
+        return min(_dist, remain)
+    if dlimit < _dist:
+        return min(_dist-dlimit, remain)
+
+    nlimit = dlimit - 1
+
+    if pos>W and route[-1] !='D':
+        npos = pos-W
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            if ns not in visited:
+                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'U', remain, answer, visited)
+    if pos%W and route[-1] !='R':
+        npos = pos-1
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            if ns not in visited:
+                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'L', remain, answer, visited)
+    if pos+W<Z and route[-1] !='U':
+        npos = pos+W
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            if ns not in visited:
+                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'D', remain, answer, visited)
+    if (pos+1)%W and route[-1] !='L':
+        npos = pos+1
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            if ns not in visited:
+                remain = slide_dfs(W,Z,G, npos, ns, nlimit, route+'R', remain, answer, visited)
+    return remain
 
 def iterative_deeping(board):
     """Iterative deeping DFS. But use BFS for some initial steps."""
@@ -268,61 +318,14 @@ def iterative_deeping(board):
 
     debug("Start iterative deeping.")
 
-    def move(state, pos, npos):
-        n = bytearray(state)
-        n[pos],n[npos] = n[npos],n[pos]
-        return bytes(n)
-
-    def slide_dfs(int pos, bytes state, int dlimit, bytes route,
-                  int remain, answer):
-        #print(print_board(W, H, state))
-        if state == G:
-            debug("Goal:", route)
-            answer.append(route)
-            return 0
-
-        cdef int _dist = dist(W,H,state,G)
-        if dlimit == 0:
-            return min(_dist, remain)
-        if dlimit < _dist:
-            return min(_dist-dlimit, remain)
-
-        nlimit = dlimit - 1
-
-        if pos>W and route[-1] !='D':
-            npos = pos-W
-            if state[npos] != '=':
-                ns = move(state, pos, npos)
-                if ns not in visited:
-                    remain = slide_dfs(npos, ns, nlimit, route+'U', remain, answer)
-        if pos%W and route[-1] !='R':
-            npos = pos-1
-            if state[npos] != '=':
-                ns = move(state, pos, npos)
-                if ns not in visited:
-                    remain = slide_dfs(npos, ns, nlimit, route+'L', remain, answer)
-        if pos+W<Z and route[-1] !='U':
-            npos = pos+W
-            if state[npos] != '=':
-                ns = move(state, pos, npos)
-                if ns not in visited:
-                    remain = slide_dfs(npos, ns, nlimit, route+'D', remain, answer)
-        if (pos+1)%W and route[-1] !='L':
-            npos = pos+1
-            if state[npos] != '=':
-                ns = move(state, pos, npos)
-                if ns not in visited:
-                    remain = slide_dfs(npos, ns, nlimit, route+'R', remain, answer)
-        return remain
-
-    cdef int depth_limit = min(dist(W,H,s[1],G) for s in Q)
-    cdef int _dist = dist(W,H,S,G)
+    cdef int depth_limit = min(dist(W, Z, s[1],G) for s in Q)
+    cdef int _dist = dist(W,Z, S,G)
     cdef bytes s
 
     while not goal_route:
         debug("Iterative DFS: depth limit =", depth_limit)
         for pos,s,route in Q:
-            _dist = slide_dfs(pos, s, depth_limit, route, _dist, goal_route)
+            _dist = slide_dfs(W, Z, G, pos, s, depth_limit, route, _dist, goal_route, visited)
         depth_limit += _dist
 
     return goal_route
