@@ -479,34 +479,29 @@ def solve_inner(problem):
     i,b = problem
     debug("start solving", i)
     routes = _slide.iterative_deeping(b)
+    #routes = _slide.solve_slide(b)
     return i,routes
 
 def solve(which=None):
-    #solve_slide = iterative_deeping
-    #from _slide import solve_slide
-
     of = sys.stdout
     limits, boards = read_problem()
     if which is None:
         which = range(len(boards))
 
     # parallel processing
-    from multiprocessing import Pool
-    pool = Pool()
-    problems = [(i,boards[i]) for i in which]
-
-    for i, routes in pool.imap_unordered(solve_inner, problems):
-        print(i, repr(routes), file=of)
-        of.flush()
-
-    #from _slide import iterative_deeping as solve_slide
-    # single processing
-    #for i in which:
-    #    b = boards[i]
-    #    debug("start solving", i)
-    #    routes = solve_slide(b)
+    #from multiprocessing import Pool
+    #pool = Pool()
+    #problems = [(i,boards[i]) for i in which]
+    #for i, routes in pool.imap_unordered(solve_inner, problems):
     #    print(i, repr(routes), file=of)
     #    of.flush()
+
+    # single processing
+    for i in which:
+        b = boards[i]
+        i, routes = solve_inner((i, b))
+        print(i, repr(routes), file=of)
+        of.flush()
 
 def merge_result(l, r):
     for k in r:
