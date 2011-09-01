@@ -247,37 +247,37 @@ cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
         route += G[state]
         debug("Goal:", route)
         answer.append(route)
-        return 1
+        return 0
 
     if dlimit == 0:
-        return 1
+        return 0
 
     cdef int ndist
     cdef int nlimit = dlimit - 1
 
-    if pos>W and route[-1] !='D':
+    if pos>W and route[-1] !=b'D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'U', answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'U', answer)
 
-    if pos%W and route[-1] !='R':
+    if pos%W and route[-1] !=b'R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'L', answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'L', answer)
 
-    if pos+W<Z and route[-1] !='U':
+    if pos+W<Z and route[-1] !=b'U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'D', answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'D', answer)
 
-    if (pos+1)%W and route[-1] !='L':
+    if (pos+1)%W and route[-1] !=b'L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+'R', answer)
+            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'R', answer)
 
     return nlimit+1
 
