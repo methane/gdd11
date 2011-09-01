@@ -347,7 +347,7 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop):
         Q = nq
 
     if goal_routes:
-        return -1, goal_routes
+        return 0, goal_routes
 
     routes = {}
     while Q:
@@ -384,6 +384,7 @@ def iterative_deeping(board, int QMAX=400000):
             results.append(fwd_routes[k] + back_routes[k])
         return results
 
+    debug("BFS stopped, start=", start_step, " end=", back_step)
 
     cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes)
     cdef int _dist = dist(W, Z, S, G)
