@@ -474,21 +474,39 @@ def cmd_test(args):
     debug(str(test_board))
     print(iterative_deeping(test_board))
 
+def solve_inner(problem):
+    import _slide
+    i,b = problem
+    debug("start solving", i)
+    routes = _slide.iterative_deeping(b)
+    return i,routes
+
 def solve(which=None):
     #solve_slide = iterative_deeping
     #from _slide import solve_slide
-    from _slide import iterative_deeping as solve_slide
+
     of = sys.stdout
     limits, boards = read_problem()
     if which is None:
         which = range(len(boards))
 
-    for i in which:
-        b = boards[i]
-        debug("start solving", i)
-        routes = solve_slide(b)
+    # parallel processing
+    from multiprocessing import Pool
+    pool = Pool()
+    problems = [(i,boards[i]) for i in which]
+
+    for i, routes in pool.imap_unordered(solve_inner, problems):
         print(i, repr(routes), file=of)
         of.flush()
+
+    #from _slide import iterative_deeping as solve_slide
+    # single processing
+    #for i in which:
+    #    b = boards[i]
+    #    debug("start solving", i)
+    #    routes = solve_slide(b)
+    #    print(i, repr(routes), file=of)
+    #    of.flush()
 
 def merge_result(l, r):
     for k in r:
