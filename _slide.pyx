@@ -247,9 +247,9 @@ cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
         route += G[state]
         debug("Goal:", route)
         answer.append(route)
-        return 0
+        return -1
 
-    if dlimit == 0:
+    if dlimit <= 0:
         return 0
 
     cdef int ndist
