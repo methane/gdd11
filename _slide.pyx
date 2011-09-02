@@ -5,11 +5,14 @@ cdef extern from *:
     ctypedef char const_char "const char"
 
 from libc.string cimport strchr
+from libc.stdlib cimport rand, srand
 from cpython.bytes cimport PyBytes_FromString
 
 import sys
 import string
+from time import time
 from collections import defaultdict, deque
+
 
 def debug(*args):
     print(*args, file=sys.stderr)
@@ -69,14 +72,13 @@ cdef int dist(int w, int z, bytes from_, bytes to_):
 
 
 def solve_slide(board, int QMAX=200000):
-    cdef int W, H, Z
     cdef int dist_limit, dist_limit_b
     cdef bytes state, S, G, route
     cdef int pos, i
 
-    W = board.w
-    H = board.h
-    Z = W*H
+    cdef int W = board.w
+    cdef int H = board.h
+    cdef int Z = W*H
 
     S = board.state
     G = make_goal(S)
@@ -282,9 +284,15 @@ cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
     return nlimit+1
 
 
-cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route):
+cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route,
+             int dist, int dist_limit, int W):
     if state[to_] == b'=':
         return
+
+    cdef int newdist = dist_diff(state, from_, to_, W) + dist
+    if newdist > dist_limit:
+        return
+
     newstate = PyBytes_FromString(<char*>state)
     cdef char *p = <char*>newstate
     p[from_], p[to_] = state[to_], state[from_]
@@ -296,10 +304,11 @@ cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, 
         return
 
     visited.add(newstate)
-    q.append((to_, newstate, route+d))
+    q.append((to_, newstate, route+d, newdist))
 
 
-cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop):
+cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
+                 bint cutdown=0, int step_limit=99999, int dist=0):
     u""" `W` x `H` マスの `initial_state` を元に、状態数が
     `threshold` を超えるか、 `stop` に含まれる(``in stop``)状態に到達するまで
     幅優先探索を行う。
@@ -315,8 +324,7 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop):
     cdef int Z = W*H
     cdef bytes G = make_goal(state)
 
-    Q = deque()
-    Q.append((pos, state, b''))
+    cdef list Q = [(pos, state, b'', dist)]
 
     visited = set([state])
     old_v2 = old_v1 = set()
@@ -324,21 +332,35 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop):
     cdef int step = 0
     goal_routes = {}
 
-    while len(Q) < threshold and not goal_routes:
+    while Q and not goal_routes:
         step += 1
-        nq = deque()
+
+        if len(Q) > threshold:
+            if cutdown:
+                debug("step=", step, "cutting from", len(Q))
+                shuffle(Q)
+                del Q[threshold:]
+            else:
+                break
+
+        nq = []
         old_v1 = set(visited)
+
         while Q:
-            pos, state, route = Q.popleft()
+            pos, state, route, dist = Q.pop()
 
             if pos >= W:
-                trymove(state, pos, pos-W, route, b'U', visited, nq, stop, goal_routes)
+                trymove(state, pos, pos-W, route, b'U', visited, nq, stop, goal_routes,
+                        dist, step_limit-step, W)
             if pos % W:
-                trymove(state, pos, pos-1, route, b'L', visited, nq, stop, goal_routes)
+                trymove(state, pos, pos-1, route, b'L', visited, nq, stop, goal_routes,
+                        dist, step_limit-step, W)
             if pos+W < Z:
-                trymove(state, pos, pos+W, route, b'D', visited, nq, stop, goal_routes)
+                trymove(state, pos, pos+W, route, b'D', visited, nq, stop, goal_routes,
+                        dist, step_limit-step, W)
             if (pos+1)%W:
-                trymove(state, pos, pos+1, route, b'R', visited, nq, stop, goal_routes)
+                trymove(state, pos, pos+1, route, b'R', visited, nq, stop, goal_routes,
+                        dist, step_limit-step, W)
         visited -= old_v2
         old_v2 = old_v1
         Q = nq
@@ -348,9 +370,23 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop):
 
     routes = {}
     while Q:
-        pos, state, route = Q.popleft()
+        pos, state, route, dist = Q.pop()
         routes[state] = route
     return step, routes
+
+
+
+cpdef shuffle(list x):
+    """x, random=random.random -> shuffle list x in place; return None.
+
+    Optional arg random is a 0-argument function returning a random
+    float in [0.0, 1.0); by default, the standard random.random.
+    """
+    cdef int i,j
+    for i in xrange(len(x)-1, -1, -1):
+        # pick an element in x[:i+1] with which to exchange x[i]
+        j = rand() % (i+1)
+        x[i], x[j] = x[j], x[i]
 
 
 def iterative_deeping(board, int QMAX=400000):
@@ -368,33 +404,69 @@ def iterative_deeping(board, int QMAX=400000):
     cdef int start_step, back_step
     results = []
 
-    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, (G,))
-    if start_step == 0:
-        return fwd_routes.values()
-
-    back_step, back_routes = limited_bfs(W, H, G, QMAX, fwd_routes)
+    back_step, back_routes = limited_bfs(W, H, G, QMAX, (S,))
     for k in back_routes:
         back_routes[k] = reverse_route(back_routes[k])
-
     if back_step == 0:
-        for k in back_routes:
+        return back_routes.values()
+    debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
+
+    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, (G,))
+    if start_step == 0:
+        for k in fwd_routes:
             results.append(fwd_routes[k] + back_routes[k])
         return results
+    debug("Forward step stopped at", start_step, "steps and", len(fwd_routes), "states.")
 
-    debug("BFS stopped, start=", start_step, " end=", back_step)
 
-    cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes)
+    cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes) - (back_step/2)
     cdef bytes s
+
+    ks = fwd_routes.keys()
+    shuffle(ks)
 
     while not results:
         debug("Iterative DFS: depth limit =", depth_limit)
-        for s in fwd_routes:
+        
+        for s in ks:
             route = fwd_routes[s]
             pos = s.index(b'0')
             depth_limit = slide_dfs(W, Z, back_routes, pos, s, depth_limit, route, results)
-        depth_limit += 4
+        depth_limit += 2
 
     return results
+
+
+def solve2(board, int QMAX=300000):
+    u"""
+    幅優先＋枝刈り。 Iterative Deeping をベースに再実装.
+    """
+    cdef bytes S = board.state
+    cdef bytes G = make_goal(S)
+
+    cdef int W = board.w
+    cdef int H = board.h
+    cdef int Z = W*H
+
+    cdef int start_step, back_step
+    results = []
+    srand(int(time()))
+
+    back_step, back_routes = limited_bfs(W, H, G, QMAX, (S,))
+    for k in back_routes:
+        back_routes[k] = reverse_route(back_routes[k])
+    if back_step == 0:
+        return back_routes.values()
+    debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
+
+    cdef int step_limit = 50
+    for step_limit in xrange(100, 500, 8):
+        debug("Starting forward step with step_limit=", step_limit)
+        start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, step_limit, dist(W, Z, S, G))
+        if start_step == 0:
+            for k in fwd_routes:
+                results.append(fwd_routes[k] + back_routes[k])
+            return results
 
 
 #todo

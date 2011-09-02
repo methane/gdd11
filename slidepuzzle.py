@@ -478,8 +478,9 @@ def solve_inner(problem):
     import _slide
     i,b = problem
     debug("start solving", i)
-    routes = _slide.iterative_deeping(b)
+    #routes = _slide.iterative_deeping(b)
     #routes = _slide.solve_slide(b)
+    routes = _slide.solve2(b)
     return i,routes
 
 def solve(which=None):
