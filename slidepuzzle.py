@@ -480,7 +480,9 @@ def solve_inner(problem):
     debug("start solving", i)
     #routes = _slide.iterative_deeping(b)
     #routes = _slide.solve_slide(b)
-    routes = _slide.solve2(b)
+    #routes = _slide.solve2(b)
+    #routes = _slide.solve_brute_force(b)
+    routes = _slide.solve_brute_force2(b)
     return i,routes
 
 def solve(which=None):
@@ -618,8 +620,13 @@ def cmd_answer(args):
             break
         else:
             print()
-    debug("answerd: {answered} L={L}/{LX}, R={R}/{RX}, U={U}/{UX}, D={D}/{DX}".
-          format(**vars()))
+
+    TOTAL = L+R+U+D
+    TOTALX= LX+RX+UX+DX
+    remans = 5000 - answered
+    remstep = TOTALX-TOTAL
+    debug("answerd: {answered} L={L}/{LX}, R={R}/{RX}, U={U}/{UX}, D={D}/{DX}\n"
+          "TOTAL={TOTAL}/{TOTALX} remain={remans}/{remstep}".format(**vars()))
 
 
 def main():
