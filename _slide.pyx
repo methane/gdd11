@@ -4,7 +4,7 @@ from __future__ import print_function
 cdef extern from *:
     ctypedef char const_char "const char"
 
-from libc.string cimport strchr
+from libc.string cimport strchr, strncmp
 from libc.stdlib cimport rand, srand
 from cpython.bytes cimport PyBytes_FromString
 
@@ -467,6 +467,227 @@ def solve2(board, int QMAX=300000):
             for k in fwd_routes:
                 results.append(fwd_routes[k] + back_routes[k])
             return results
+
+cdef enum DIRECT:
+    NOT = 0
+    UP = 1
+    DOWN = 2
+    LEFT = 3
+    RIGHT = 4
+
+
+cdef object brute_dfs(char *S, char *G, int pos, int limit, int fit, int W, int Z, int last=NOT):
+    if strncmp(S, G, fit) == 0:
+        return (S, b'')
+    if limit <= 0:
+        return None
+    limit -= 1
+
+    cdef int npos
+
+    if pos >= W and last != DOWN:
+        npos = pos - W
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, UP)
+            if r is not None: return (r[0], b'U'+r[1])
+
+    if pos % W and last != RIGHT:
+        npos = pos - 1
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, LEFT)
+            if r is not None: return (r[0], b'L'+r[1])
+
+    if pos+W < Z and last != UP:
+        npos = pos + W
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, DOWN)
+            if r is not None: return (r[0], b'D'+r[1])
+
+    if (pos+1) % W and last != LEFT:
+        npos = pos + 1
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, RIGHT)
+            if r is not None: return (r[0], b'R'+r[1])
+
+
+
+
+def solve_brute_force(board, int Q=0):
+    u"""
+    1つずつ着実にアルゴリズム
+    """
+    cdef bytes S = board.state
+    cdef bytes G = make_goal(S)
+
+    cdef int W = board.w
+    cdef int H = board.h
+    cdef int Z = W*H
+    cdef int i,j
+    
+    routes = []
+
+    for i in xrange(Z):
+        if S[:i] == G[:i]:
+            continue
+        debug("Fiting first", i, "chars")
+        for j in xrange(60):
+            debug("IDDFS step:", j)
+            r = brute_dfs(S, G, S.find(b'0'), j, i, W, Z)
+            if r is not None:
+                S = r[0]
+                routes.append(r[1])
+                break
+        else:
+            return []
+    return [b''.join(routes)]
+
+
+cdef object brute_dfs2(char *S, char *G, int pos, int limit, int fit, int W, int Z, int last=NOT):
+    if S[fit] == G[fit]:
+        return (S, b'')
+    if limit <= 0:
+        return None
+    limit -= 1
+
+    cdef int npos
+
+    if pos >= W and last != DOWN:
+        npos = pos - W
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, UP)
+            if r is not None: return (r[0], b'U'+r[1])
+
+    if pos % W and last != RIGHT:
+        npos = pos - 1
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, LEFT)
+            if r is not None: return (r[0], b'L'+r[1])
+
+    if pos+W < Z and last != UP:
+        npos = pos + W
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, DOWN)
+            if r is not None: return (r[0], b'D'+r[1])
+
+    if (pos+1) % W and last != LEFT:
+        npos = pos + 1
+        if S[npos] != b'=':
+            ns = move(S, pos, npos)
+            r = brute_dfs(ns, G, npos, limit, fit, W, Z, RIGHT)
+            if r is not None: return (r[0], b'R'+r[1])
+
+
+def find_shortest_route(int W, int H, bytes state, int start, int goal):
+    cdef int pos = start
+    cdef int Z = W*H
+    route = [pos]
+    q = [route]
+
+    while True:
+        nq = []
+        while q:
+            route = q.pop()
+            pos = route[-1]
+            if pos == goal: return route
+
+            if pos%W and state[pos-1] != b'=':
+                nq.append(route + [pos-1])
+            if (pos+1)%W and state[pos+1] != b'=':
+                nq.append(route + [pos+1])
+            if pos>=W and state[pos-W] != b'=':
+                nq.append(route + [pos-W])
+            if pos+W<Z and state[pos+W] != b'=':
+                nq.append(route + [pos+W])
+        q = nq
+
+
+def pos_to_direct(int pos, int npos):
+    if npos == pos+1:
+        return b'R'
+    elif npos == pos-1:
+        return b'L'
+    elif npos > pos: 
+        return b'D'
+    else:
+        return b'U'
+
+def move_one_panel_to_goal(int W, int H, bytes state, bytes panel):
+    cdef int start = state.index(panel)
+    cdef int goal = PLATES.index(panel)
+    cdef int pos = state.index(b'0')
+    cdef int panel_pos
+    cdef int npos
+
+    dummy = state[:start] + b'=' + state[start+1:]
+
+    panel_route = find_shortest_route(W, H, state, start, goal)
+    total_route = b""
+    for i in xrange(len(panel_route)-1):
+        route = find_shortest_route(W, H, dummy, pos, panel_route[i+1])
+        for npos in route[1:]:
+            dummy = move(dummy, pos, npos)
+            state = move(state, pos, npos)
+            total_route += pos_to_direct(pos, npos)
+            pos = npos
+        npos = panel_route[i]
+        dummy = move(dummy, pos, npos)
+        state = move(state, pos, npos)
+        total_route += pos_to_direct(pos, npos)
+    return state, total_route
+
+
+def solve_brute_force2(board, int Q=0):
+    u"""
+    もっと着実アルゴリズム
+    """
+    cdef bytes S = board.state
+    cdef bytes G = make_goal(S)
+    cdef bytes state = S
+
+    cdef int W = board.w
+    cdef int H = board.h
+    cdef int Z = W*H
+    cdef int i,j
+    
+    routes = []
+
+    i=1
+    while i < Z:
+        if S[:i] == G[:i]:
+            i += 1
+            continue
+        debug("Fiting first", i, "chars")
+        for j in xrange(20):
+            debug("IDDFS step:", j)
+            r = brute_dfs(S, G, S.find(b'0'), j, i, W, Z)
+            if r is not None:
+                S = r[0]
+                routes.append(r[1])
+                break
+        else:
+            debug("Moving", G[i])
+            S,r = move_one_panel_to_goal(W, H, S, G[i])
+            routes.append(r)
+            for j in xrange(50):
+                debug("IDDFS step:", j)
+                r = brute_dfs(S, G, S.find(b'0'), j, i, W, Z)
+                if r is not None:
+                    S = r[0]
+                    routes.append(r[1])
+                    break
+            else:
+                return []
+        i += 1
+    return [b''.join(routes)]
+
+
 
 
 #todo
