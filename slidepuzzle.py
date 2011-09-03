@@ -18,7 +18,7 @@ gc.disable()
 def debug(*args):
     print(*args, file=sys.stderr)
 
-PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
+PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 class Board(object):
     __slots__ = ['w', 'h', 'state']

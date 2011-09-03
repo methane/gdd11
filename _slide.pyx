@@ -4,7 +4,7 @@ from __future__ import print_function
 cdef extern from *:
     ctypedef char const_char "const char"
 
-from libc.string cimport strchr, strncmp
+from libc.string cimport strchr, strncmp, memset
 from libc.stdlib cimport rand, srand
 from cpython.bytes cimport PyBytes_FromString
 
@@ -69,6 +69,51 @@ cdef int dist(int w, int z, bytes from_, bytes to_):
         dist += _abs(i//w - index//w)
         dist += _abs(i%w - index%w)
     return dist
+
+
+cdef char _dist_table[64][64]
+
+def init_dist_table(int w, int h, bytes s):
+    cdef char *tbl
+    cdef int pos, dist, npos
+
+    for pos in xrange(w*h):
+        tbl = _dist_table[pos]
+        memset(tbl, -1, 64)
+        tbl[pos] = 0
+        q = deque()
+        q.append(pos)
+
+        while q:
+            pos = q.popleft()
+            dist = tbl[pos]+1
+
+            if pos%w:
+                npos = pos-1
+                if tbl[npos] == -1 and s[npos] != b'=':
+                    tbl[npos] = dist
+                    q.append(npos)
+
+            if (pos+1)%w:
+                npos = pos+1
+                if tbl[npos] == -1 and s[npos] != b'=':
+                    tbl[npos] = dist
+                    q.append(npos)
+
+            if pos-w >= 0:
+                npos = pos-w
+                if tbl[npos] == -1 and s[npos] != b'=':
+                    tbl[npos] = dist
+                    q.append(npos)
+
+            if pos+w < w*h:
+                npos = pos+w
+                if tbl[npos] == -1 and s[npos] != b'=':
+                    tbl[npos] = dist
+                    q.append(npos)
+
+def get_table_dist(int pos, int to):
+    return _dist_table[pos][to]
 
 
 def solve_slide(board, int QMAX=200000):
