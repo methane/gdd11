@@ -42,13 +42,13 @@ def check_route(board, route):
     w = board.w
     h = board.h
     state = bytearray(board.state)
-    pos = board.state.index('0')
+    pos = board.state.index(b'0')
 
     try:
         for c in route:
             if c == 'D':
                 npos = pos+w
-                if npos > w*h:
+                if npos >= w*h:
                     return False
             elif c == 'U':
                 npos = pos-w
@@ -58,10 +58,14 @@ def check_route(board, route):
                 if pos%w == 0:
                     return False
                 npos = pos-1
-            else: #R
+            elif c == 'R':
                 if (pos+1)%w == 0:
                     return False
                 npos = pos+1
+            else:
+                return False
+            if state[npos] == b'=' or state[pos] == b'=':
+                return False
             state[pos], state[npos] = state[npos], state[pos]
             pos = npos
     except IndexError:
