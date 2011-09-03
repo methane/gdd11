@@ -47,29 +47,6 @@ def join_route_back(broute, state, remain):
         if state == s:
             return r + broute[::-1]
 
-cdef int _abs(int x):
-    if x < 0: return -x
-    return x
-
-cdef int dist(int w, int z, bytes from_, bytes to_):
-    """
-    w: width, z: width*height, from_: from state, to_: to state.
-    """
-    cdef int dist=0, i, c, index
-    cdef char *f, *t
-    f = from_
-    t = to_
-    for i in xrange(z):
-        c = f[i]
-        if c in b'=0':
-            continue
-        for index in xrange(z):
-            if t[index] == c:
-                break
-        dist += _abs(i//w - index//w)
-        dist += _abs(i%w - index%w)
-    return dist
-
 
 cdef char _dist_table[64][64]
 
@@ -114,6 +91,25 @@ def init_dist_table(int w, int h, bytes s):
 
 def get_table_dist(int pos, int to):
     return _dist_table[pos][to]
+
+cdef int dist(int w, int z, bytes from_, bytes to_):
+    """
+    w: width, z: width*height, from_: from state, to_: to state.
+    """
+    cdef int dist=0, i, c, index
+    cdef char *f, *t
+    f = from_
+    t = to_
+    for i in xrange(z):
+        c = f[i]
+        if c in b'=0':
+            continue
+        for index in xrange(z):
+            if t[index] == c:
+                break
+        dist += _dist_table[i][index]
+    return dist
+
 
 
 def solve_slide(board, int QMAX=200000):
@@ -276,14 +272,14 @@ cdef int char_to_gpos(int c):
 
 cdef int dist_diff(char *state, int pos, int npos, int W):
     u"""state の pos にある空白を npos に移動したときの、
-    マンハッタン距離の変化を返す."""
+    ゴールまでの距離の変化を返す."""
 
     # 空白が pos->npos なので、タイルは npos->pos に移動する.
     cdef int c = state[npos]
     cdef int gpos = char_to_gpos(c) 
 
-    cdef int prev_dist = _abs(gpos//W - npos//W) + _abs(gpos%W - npos%W)
-    cdef int next_dist = _abs(gpos//W -  pos//W) + _abs(gpos%W -  pos%W)
+    cdef int prev_dist = _dist_table[gpos][npos]
+    cdef int next_dist = _dist_table[gpos][pos]
 
     return next_dist - prev_dist
 
@@ -493,6 +489,8 @@ def solve2(board, int QMAX=300000):
     cdef int H = board.h
     cdef int Z = W*H
 
+    init_dist_table(W, H, S)   
+
     cdef int start_step, back_step
     results = []
     srand(int(time()))
@@ -505,7 +503,7 @@ def solve2(board, int QMAX=300000):
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
     cdef int step_limit
-    for step_limit in xrange(100, 500, 8):
+    for step_limit in xrange(100, 360, 8):
         debug("Starting forward step with step_limit=", step_limit)
         start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, step_limit, dist(W, Z, S, G))
         if start_step == 0:
@@ -572,7 +570,9 @@ def solve_brute_force(board, int Q=0):
     cdef int H = board.h
     cdef int Z = W*H
     cdef int i,j
-    
+ 
+    init_dist_table(W, H, S)   
+
     routes = []
 
     for i in xrange(Z):
@@ -591,7 +591,7 @@ def solve_brute_force(board, int Q=0):
     return [b''.join(routes)]
 
 
-def find_shortest_route(int W, int H, bytes state, int start, int goal):
+cdef find_shortest_route(int W, int H, bytes state, int start, int goal):
     cdef int pos = start
     cdef int Z = W*H
     route = [pos]
@@ -615,7 +615,7 @@ def find_shortest_route(int W, int H, bytes state, int start, int goal):
         q = nq
 
 
-def pos_to_direct(int pos, int npos):
+cdef pos_to_direct(int pos, int npos):
     if npos == pos+1:
         return b'R'
     elif npos == pos-1:
@@ -625,7 +625,7 @@ def pos_to_direct(int pos, int npos):
     else:
         return b'U'
 
-def move_one_panel_to_goal(int W, int H, bytes state, bytes panel):
+cdef move_one_panel_to_goal(int W, int H, bytes state, bytes panel):
     cdef int start = state.index(panel)
     cdef int goal = PLATES.index(panel)
     cdef int pos = state.index(b'0')
@@ -662,7 +662,9 @@ def solve_brute_force2(board, int Q=0):
     cdef int H = board.h
     cdef int Z = W*H
     cdef int i,j
-    
+
+    init_dist_table(W, H, S)
+
     routes = []
     cdef int depth=20
 
