@@ -9,6 +9,8 @@ import sys
 import json
 from pprint import pprint
 import pickle
+import time
+import random
 
 import gc
 gc.disable()
@@ -46,8 +48,12 @@ def check_route(board, route):
         for c in route:
             if c == 'D':
                 npos = pos+w
+                if npos > w*h:
+                    return False
             elif c == 'U':
                 npos = pos-w
+                if npos < 0:
+                    return False
             elif c == 'L':
                 if pos%w == 0:
                     return False
@@ -480,9 +486,9 @@ def solve_inner(problem):
     debug("start solving", i)
     #routes = _slide.iterative_deeping(b)
     #routes = _slide.solve_slide(b)
-    #routes = _slide.solve2(b)
+    routes = _slide.solve2(b)
     #routes = _slide.solve_brute_force(b)
-    routes = _slide.solve_brute_force2(b)
+    #routes = _slide.solve_brute_force2(b)
     return i,routes
 
 def solve(which=None):
@@ -496,15 +502,17 @@ def solve(which=None):
     #pool = Pool()
     #problems = [(i,boards[i]) for i in which]
     #for i, routes in pool.imap_unordered(solve_inner, problems):
-    #    print(i, repr(routes), file=of)
-    #    of.flush()
+    #    if routes:
+    #        print(i, repr(routes), file=of)
+    #        of.flush()
 
     # single processing
     for i in which:
         b = boards[i]
         i, routes = solve_inner((i, b))
-        print(i, repr(routes), file=of)
-        of.flush()
+        if routes:
+            print(i, repr(routes), file=of)
+            of.flush()
 
 def merge_result(l, r):
     for k in r:
@@ -597,6 +605,7 @@ def cmd_missing(args):
 
 def cmd_solve_missing(args):
     which = map(int, open(args[0]))
+    random.shuffle(which)
     solve(which)
 
 def cmd_answer(args):
@@ -630,6 +639,7 @@ def cmd_answer(args):
 
 
 def main():
+    random.seed(int(time.time()))
     if len(sys.argv) < 2:
         debug("commands: solve load dump answer missing")
         return
