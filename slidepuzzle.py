@@ -169,11 +169,12 @@ def solve_inner(problem):
     import _slide
     i,b = problem
     debug("start solving", i)
-    #routes = _slide.iterative_deeping(b)
-    routes = _slide.solve_slide(b)
-    #routes = _slide.solve2(b)
-    #routes = _slide.solve_brute_force(b)
-    #routes = _slide.solve_brute_force2(b)
+    #routes = _slide.iterative_deeping(b.w, b.h, b.state)
+    #routes = _slide.solve_slide(b.w, b.h, b.state)
+    #routes = _slide.solve2(b.w, b.h, b.state)
+    #routes = _slide.solve_brute_force(b.w, b.h, b.state)
+    #routes = _slide.solve_brute_force2(b.w, b.h, b.state)
+    routes = _slide.solve_combined(b.w, b.h, b.state)
     return i,routes
 
 def solve(which=None):
@@ -280,6 +281,12 @@ def cmd_load(args):
             L.sort(key=len)
     save_data(data)
 
+def cmd_trace(args):
+    n = int(args[0])
+    data = load_data()
+    L, B = read_problem()
+    trace_route(B[n], data[n][0])
+
 def cmd_dump(args):
     data = load_data()
     pprint(data)
@@ -324,6 +331,18 @@ def cmd_answer(args):
     debug("answerd: {answered} L={L}/{LX}, R={R}/{RX}, U={U}/{UX}, D={D}/{DX}\n"
           "TOTAL={TOTAL}/{TOTALX} remain={remans}/{remstep}".format(**vars()))
 
+def cmd_shorten(_):
+    data = load_data()
+    for i, L in data.items():
+        for j, r in enumerate(L):
+            s = r.replace('UD', '').replace('DU', '')
+            s = s.replace('LR', '').replace('RL', '')
+            if s != r:
+                debug("Shorten", i)
+                debug("FROM:", r)
+                debug("TO  :", s)
+                L[j]=s
+    save_data(data)
 
 def main():
     random.seed(int(time.time()))

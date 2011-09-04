@@ -15,7 +15,8 @@ from collections import defaultdict, deque
 
 
 def debug(*args):
-    print(*args, file=sys.stderr)
+    t = time()
+    print(t, *args, file=sys.stderr)
 
 PLATES = b'123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
 
@@ -28,14 +29,14 @@ def reverse_route(route):
     return route.translate(_T)
 
 
-def make_goal(state):
+def make_goal(bytes state):
     N = len(state)
-    state = bytearray(state)
+    s = bytearray(state)
     for i in xrange(N):
-        if state[i] != ord('='):
-            state[i] = PLATES[i]
-    state[-1] = '0'
-    return bytes(state)
+        if s[i] != ord('='):
+            s[i] = PLATES[i]
+    s[-1] = '0'
+    return bytes(s)
 
 def join_route(route, state, remain):
     for p, s, r in remain:
@@ -112,16 +113,13 @@ cdef int dist(int w, int z, bytes from_, bytes to_):
 
 
 
-def solve_slide(board, int QMAX=200000):
+def solve_slide(int W, int H, bytes S, int QMAX=200000):
     cdef int dist_limit, dist_limit_b
-    cdef bytes state, S, G, route
+    cdef bytes state, G, route
     cdef int pos, i
 
-    cdef int W = board.w
-    cdef int H = board.h
     cdef int Z = W*H
 
-    S = board.state
     G = make_goal(S)
     debug("Start:", S)
     debug("Goal: ", G)
@@ -131,11 +129,10 @@ def solve_slide(board, int QMAX=200000):
     dist_limit_b = dist_limit = dist(W, Z, G, S) + (W*H)
 
     Q = deque()
-    state = board.state
-    pos = state.index(b'0')
-    Q.append((pos, state, ''))
+    pos = S.index(b'0')
+    Q.append((pos, S, ''))
     visited = set()
-    visited.add(bytes(state))
+    visited.add(bytes(S))
     old_v2 = old_v1 = set()
 
     BQ = deque()
@@ -429,17 +426,11 @@ cpdef shuffle(list x):
         x[i], x[j] = x[j], x[i]
 
 
-def iterative_deeping(board, int QMAX=400000):
+def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     """Iterative deeping DFS. But use BFS for some initial steps."""
-    cdef int W, H, Z
-    cdef int pos
-
-    cdef bytes S = board.state
+    cdef int Z = W*H
     cdef bytes G = make_goal(S)
-
-    W = board.w
-    H = board.h
-    Z = W*H
+    cdef int pos
 
     init_dist_table(W, H, S)   
 
@@ -479,15 +470,11 @@ def iterative_deeping(board, int QMAX=400000):
     return results
 
 
-def solve2(board, int QMAX=300000):
+def solve2(int W, int H, bytes S, int QMAX=300000):
     u"""
     幅優先＋枝刈り。 Iterative Deeping をベースに再実装.
     """
-    cdef bytes S = board.state
     cdef bytes G = make_goal(S)
-
-    cdef int W = board.w
-    cdef int H = board.h
     cdef int Z = W*H
 
     init_dist_table(W, H, S)   
@@ -560,15 +547,12 @@ cdef object brute_dfs(char *S, char *G, int pos, int limit, int fit, int W, int 
 
 
 
-def solve_brute_force(board, int Q=0):
+def solve_brute_force(int W, int H, bytes S, int Q=0):
     u"""
     1つずつ着実にアルゴリズム
     """
-    cdef bytes S = board.state
     cdef bytes G = make_goal(S)
 
-    cdef int W = board.w
-    cdef int H = board.h
     cdef int Z = W*H
     cdef int i,j
  
@@ -651,16 +635,13 @@ cdef move_one_panel_to_goal(int W, int H, bytes state, bytes panel):
     return state, total_route
 
 
-def solve_brute_force2(board, int Q=0):
+def solve_brute_force2(int W, int H, bytes S, int Q=0):
     u"""
     もっと着実アルゴリズム
     """
-    cdef bytes S = board.state
     cdef bytes G = make_goal(S)
     cdef bytes state = S
 
-    cdef int W = board.w
-    cdef int H = board.h
     cdef int Z = W*H
     cdef int i,j
 
@@ -699,4 +680,24 @@ def solve_brute_force2(board, int Q=0):
         i += 1
     return [b''.join(routes)]
 
+
+def solve_combined(int W, int H, bytes S, int Q=300000):
+    u"""複数の方式の組み合わせ."""
+
+    cdef bytes G = make_goal(S)
+    cdef bytes state = S
+    cdef int Z = W*H
+
+    init_dist_table(W, H, S)
+
+    base_route = b''
+
+    for i in xrange(Z-1):
+        if S[i] != G[i]:
+            S,r = move_one_panel_to_goal(W, H, S, G[i])
+            base_route += r
+
+    routes = solve2(W, H, S)
+    routes = [base_route + r for r in routes]
+    return routes
 
