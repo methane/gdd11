@@ -12,6 +12,7 @@ import pickle
 import time
 import random
 
+# 循環参照はつくらないようにしているので、無駄なGCを止める.
 import gc
 gc.disable()
 
@@ -126,7 +127,6 @@ def read_problem():
     with open('problems.txt') as f:
         L = f.readline().strip()
         LIMITS = map(int, L.split())
-        #debug('LX={0}, RX={1}, UX={2}, DX={3}'.format(*LIMITS))
 
         num_problems = int(f.readline().strip())
 
@@ -159,29 +159,9 @@ def better_route(L, R):
             lc('U') <= rc('U') and
             lc('D') <= rc('D'))
 
-def append_route(routes, new_route):
-    for old_route in routes:
-        if better_route(old_route, new_route):
-            return
-        if better_route(new_route, old_route):
-            routes[routes.index(old_route)] = new_route
-            return
-    routes.append(new_route)
-
-def join_route(route, state, remain):
-    for p, s, r in remain:
-        if state == s:
-            return route + r[::-1]
-
-def join_route_back(broute, state, remain):
-    for p, s, r in remain:
-        if state == s:
-            return r + broute[::-1]
-
 def cmd_test(args):
     test_board = Board(3,2,b"012453")
     #test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
-
     debug(str(test_board))
     print(iterative_deeping(test_board))
 
