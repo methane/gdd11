@@ -18,7 +18,7 @@ gc.disable()
 def debug(*args):
     print(*args, file=sys.stderr)
 
-PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+PLATES = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
 
 class Board(object):
     __slots__ = ['w', 'h', 'state']
@@ -489,8 +489,8 @@ def solve_inner(problem):
     i,b = problem
     debug("start solving", i)
     #routes = _slide.iterative_deeping(b)
-    #routes = _slide.solve_slide(b)
-    routes = _slide.solve2(b)
+    routes = _slide.solve_slide(b)
+    #routes = _slide.solve2(b)
     #routes = _slide.solve_brute_force(b)
     #routes = _slide.solve_brute_force2(b)
     return i,routes
@@ -501,22 +501,24 @@ def solve(which=None):
     if which is None:
         which = range(len(boards))
 
-    # parallel processing
-    #from multiprocessing import Pool
-    #pool = Pool()
-    #problems = [(i,boards[i]) for i in which]
-    #for i, routes in pool.imap_unordered(solve_inner, problems):
-    #    if routes:
-    #        print(i, repr(routes), file=of)
-    #        of.flush()
-
-    # single processing
-    for i in which:
-        b = boards[i]
-        i, routes = solve_inner((i, b))
-        if routes:
-            print(i, repr(routes), file=of)
-            of.flush()
+    procs = os.environ.get('SLIDE_PROCS')
+    if procs:
+        # parallel processing
+        from multiprocessing import Pool
+        pool = Pool(int(procs))
+        problems = [(i,boards[i]) for i in which]
+        for i, routes in pool.imap_unordered(solve_inner, problems):
+            if routes:
+                print(i, repr(routes), file=of)
+                of.flush()
+    else:
+        # single processing
+        for i in which:
+            b = boards[i]
+            i, routes = solve_inner((i, b))
+            if routes:
+                print(i, repr(routes), file=of)
+                of.flush()
 
 def merge_result(l, r):
     for k in r:

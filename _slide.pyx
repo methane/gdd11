@@ -126,6 +126,8 @@ def solve_slide(board, int QMAX=200000):
     debug("Start:", S)
     debug("Goal: ", G)
 
+    init_dist_table(W, H, S)   
+
     dist_limit_b = dist_limit = dist(W, Z, G, S) + (W+H)*2 + 20
 
     Q = deque()
@@ -153,9 +155,7 @@ def solve_slide(board, int QMAX=200000):
         if not(0 <= to_ < Z) or state[to_] == b'=':
             return
 
-        newstate = PyBytes_FromString(state)
-        pc = newstate
-        pc[from_], pc[to_] = pc[to_], pc[from_]
+        newstate = move(state, from_, to_)
 
         if newstate in visited:
             return
@@ -169,7 +169,7 @@ def solve_slide(board, int QMAX=200000):
             visited.add(newstate)
             q.append((to_, newstate, route+d))
 
-    for step in xrange(1,200):
+    for step in xrange(1,250):
         if not Q or not BQ:
             debug("No sattes. Give up")
             break
@@ -441,6 +441,8 @@ def iterative_deeping(board, int QMAX=400000):
     W = board.w
     H = board.h
     Z = W*H
+
+    init_dist_table(W, H, S)   
 
     cdef int start_step, back_step
     results = []
