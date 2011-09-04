@@ -128,7 +128,7 @@ def solve_slide(board, int QMAX=200000):
 
     init_dist_table(W, H, S)   
 
-    dist_limit_b = dist_limit = dist(W, Z, G, S) + (W+H)*2 + 20
+    dist_limit_b = dist_limit = dist(W, Z, G, S) + (W*H)
 
     Q = deque()
     state = board.state
@@ -286,43 +286,42 @@ cdef int dist_diff(char *state, int pos, int npos, int W):
 
 cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
                    bytes route, list answer):
+    if dlimit <= 0:
+        return 0
+
     if state in G:
         route += G[state]
         debug("Goal:", route)
         answer.append(route)
-        return -1
-
-    if dlimit <= 0:
         return 0
 
     cdef int ndist
-    cdef int nlimit = dlimit - 1
 
     if pos>W and route[-1] !=b'D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'U', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'U', answer)
 
     if pos%W and route[-1] !=b'R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'L', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'L', answer)
 
     if pos+W<Z and route[-1] !=b'U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'D', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'D', answer)
 
     if (pos+1)%W and route[-1] !=b'L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            nlimit = slide_dfs(W,Z,G, npos, ns, nlimit, route+b'R', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'R', answer)
 
-    return nlimit+1
+    return dlimit
 
 
 cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route,
@@ -454,7 +453,7 @@ def iterative_deeping(board, int QMAX=400000):
         return back_routes.values()
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
-    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, (G,))
+    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes)
     if start_step == 0:
         for k in fwd_routes:
             results.append(fwd_routes[k] + back_routes[k])
@@ -701,29 +700,3 @@ def solve_brute_force2(board, int Q=0):
     return [b''.join(routes)]
 
 
-
-
-#todo
-"""
-cdef dist_only_top():
-    pass
-
-cdef fill_top_line(int W, int H, bytes state):
-    que = deque()
-    que.add(('', state))
-    cdef int pos = state.find(b'0')
-
-    while True:
-        route, state = que.popleft()
-
-def heuristic(board):
-    cdef int W = board.w
-    cdef int H = board.h
-    cdef bytes state = board.state
-
-    cdef bytes prefix_route = ""
-
-    while W+H > 9:
-        prefix, state = fill_top_line(state)
-        prefix_route += prefix
-"""
