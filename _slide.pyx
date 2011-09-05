@@ -281,44 +281,56 @@ cdef int dist_diff(char *state, int pos, int npos, int W):
     return next_dist - prev_dist
 
 
+
+cdef unsigned long[1024*1024*32] _visited_map
+
+cdef _reset_visited_map():
+    memset(_visited_map, 0, sizeof(_visited_map))
+
 cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
                    bytes route, list answer):
-    if dlimit <= 0:
-        return 0
-
     if state in G:
         route += G[state]
         debug("Goal:", route)
         answer.append(route)
-        return 0
+        return -1
 
     cdef int ndist
+    if dlimit <= 0:
+        return 0
+
+    cdef long hashval = hash(state) % (sizeof(long)*32*1024*1024)
+    if _visited_map[hashval/sizeof(long)] & (1 << (hashval%sizeof(long))):
+        return dlimit
+    _visited_map[hashval/sizeof(long)] |= 1 << (hashval%sizeof(long));
+
+    dlimit -= 1
 
     if pos>W and route[-1] !=b'D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'U', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'U', answer)
 
     if pos%W and route[-1] !=b'R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'L', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'L', answer)
 
     if pos+W<Z and route[-1] !=b'U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'D', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'D', answer)
 
     if (pos+1)%W and route[-1] !=b'L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit-1, route+b'R', answer)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'R', answer)
 
-    return dlimit
+    return dlimit+1
 
 
 cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route,
@@ -452,7 +464,7 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     debug("Forward step stopped at", start_step, "steps and", len(fwd_routes), "states.")
 
 
-    cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes) - (back_step/2)
+    cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes) - max(dist(W, Z, s, G) for s in back_routes)
     cdef bytes s
 
     ks = fwd_routes.keys()
@@ -460,7 +472,8 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
 
     while not results:
         debug("Iterative DFS: depth limit =", depth_limit)
-        
+        _reset_visited_map()
+    
         for s in ks:
             route = fwd_routes[s]
             pos = s.index(b'0')
@@ -697,7 +710,8 @@ def solve_combined(int W, int H, bytes S, int Q=300000):
             S,r = move_one_panel_to_goal(W, H, S, G[i])
             base_route += r
 
-    routes = solve2(W, H, S)
+    #routes = solve2(W, H, S)
+    routes = iterative_deeping(W, H, S)
     routes = [base_route + r for r in routes]
     return routes
 
