@@ -169,12 +169,12 @@ def solve_inner(problem):
     import _slide
     i,b = problem
     debug("start solving", i)
-    #routes = _slide.iterative_deeping(b.w, b.h, b.state)
+    routes = _slide.iterative_deeping(b.w, b.h, b.state)
     #routes = _slide.solve_slide(b.w, b.h, b.state)
     #routes = _slide.solve2(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force2(b.w, b.h, b.state)
-    routes = _slide.solve_combined(b.w, b.h, b.state)
+    #routes = _slide.solve_combined(b.w, b.h, b.state)
     return i,routes
 
 def solve(which=None):
@@ -331,17 +331,28 @@ def cmd_answer(args):
     debug("answerd: {answered} L={L}/{LX}, R={R}/{RX}, U={U}/{UX}, D={D}/{DX}\n"
           "TOTAL={TOTAL}/{TOTALX} remain={remans}/{remstep}".format(**vars()))
 
+def shorten(r):
+    while True:
+        s = r
+        s = s.replace('UD', '').replace('DU', '')
+        s = s.replace('LR', '').replace('RL', '')
+        if r == s:
+            return s
+        r = s
+
 def cmd_shorten(_):
     data = load_data()
     for i, L in data.items():
         for j, r in enumerate(L):
-            s = r.replace('UD', '').replace('DU', '')
-            s = s.replace('LR', '').replace('RL', '')
+            s = shorten(r)
             if s != r:
                 debug("Shorten", i)
                 debug("FROM:", r)
                 debug("TO  :", s)
                 L[j]=s
+            u = list(set(L))
+            u.sort(key=len)
+            L[:]=u
     save_data(data)
 
 def main():
