@@ -160,10 +160,11 @@ def better_route(L, R):
             lc('D') <= rc('D'))
 
 def cmd_test(args):
+    import _slide
     test_board = Board(3,2,b"012453")
     #test_board = Board(6,6,b"71=45=28B0AID=CF9OJ===GHWVRSNZQP==UT")
     debug(str(test_board))
-    print(iterative_deeping(test_board))
+    print(_slide.iterative_deeping(test_board.w, test_board.h, test_board.state))
 
 def solve_inner(problem):
     import _slide

@@ -13,9 +13,10 @@ import string
 from time import time
 from collections import defaultdict, deque
 
+_base_time = time()
 
 def debug(*args):
-    t = time()
+    t = time() - _base_time
     print(t, *args, file=sys.stderr)
 
 PLATES = b'123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0'
@@ -281,56 +282,21 @@ cdef int dist_diff(char *state, int pos, int npos, int W):
     return next_dist - prev_dist
 
 
+DEF VISITED_MAP_SIZE = 128*1024*1024
+DEF VISITED_MAP_HASHSIZE = 32 * VISITED_MAP_SIZE
 
-cdef unsigned long[1024*1024*32] _visited_map
+cdef unsigned int[VISITED_MAP_SIZE] _visited_map
 
 cdef _reset_visited_map():
     memset(_visited_map, 0, sizeof(_visited_map))
 
-cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
-                   bytes route, list answer):
-    if state in G:
-        route += G[state]
-        debug("Goal:", route)
-        answer.append(route)
-        return -1
+cdef inline void _set_visited_map(long pos):
+    pos %= VISITED_MAP_SIZE
+    _visited_map[pos/32] |= (1 << (pos%32))
 
-    cdef int ndist
-    if dlimit <= 0:
-        return 0
-
-    cdef long hashval = hash(state) % (sizeof(long)*32*1024*1024)
-    if _visited_map[hashval/sizeof(long)] & (1 << (hashval%sizeof(long))):
-        return dlimit
-    _visited_map[hashval/sizeof(long)] |= 1 << (hashval%sizeof(long));
-
-    dlimit -= 1
-
-    if pos>W and route[-1] !=b'D':
-        npos = pos-W
-        if state[npos] != '=':
-            ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'U', answer)
-
-    if pos%W and route[-1] !=b'R':
-        npos = pos-1
-        if state[npos] != '=':
-            ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'L', answer)
-
-    if pos+W<Z and route[-1] !=b'U':
-        npos = pos+W
-        if state[npos] != '=':
-            ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'D', answer)
-
-    if (pos+1)%W and route[-1] !=b'L':
-        npos = pos+1
-        if state[npos] != '=':
-            ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'R', answer)
-
-    return dlimit+1
+cdef inline bint _get_visited_map(long pos):
+    pos %= VISITED_MAP_SIZE
+    return _visited_map[pos/32] & (1 << (pos%32))
 
 
 cdef trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route,
@@ -438,11 +404,61 @@ cpdef shuffle(list x):
         x[i], x[j] = x[j], x[i]
 
 
+# iterative deeping用のDFS
+cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
+                   bytes route, list answer):
+
+    cdef unsigned long hashval = hash(state)
+
+    if _get_visited_map(hashval):
+        # ビットマップが立っている場合は、ゴールか、すでに通ったルートか、
+        # それに衝突した場合. 衝突は割り切る.
+        if state in G:
+            route += G[state]
+            debug("Goal:", route)
+            answer.append(route)
+            return -1
+        return dlimit
+
+    _set_visited_map(hashval)
+
+    cdef int ndist
+    if dlimit <= 0:
+        return 0
+
+    dlimit -= 1
+
+    if pos>W and route[-1] !=b'D':
+        npos = pos-W
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'U', answer)
+
+    if pos%W and route[-1] !=b'R':
+        npos = pos-1
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'L', answer)
+
+    if pos+W<Z and route[-1] !=b'U':
+        npos = pos+W
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'D', answer)
+
+    if (pos+1)%W and route[-1] !=b'L':
+        npos = pos+1
+        if state[npos] != '=':
+            ns = move(state, pos, npos)
+            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'R', answer)
+
+    return dlimit+1
+
+
 def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     """Iterative deeping DFS. But use BFS for some initial steps."""
     cdef int Z = W*H
     cdef bytes G = make_goal(S)
-    cdef int pos
 
     init_dist_table(W, H, S)   
 
@@ -456,31 +472,20 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
         return back_routes.values()
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
-    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes)
-    if start_step == 0:
-        for k in fwd_routes:
-            results.append(fwd_routes[k] + back_routes[k])
-        return results
-    debug("Forward step stopped at", start_step, "steps and", len(fwd_routes), "states.")
 
+    cdef int pos = S.index(b'0')
+    cdef int depth_limit = dist(W, Z, S, G)
 
-    cdef int depth_limit = min(dist(W, Z, s, G) for s in fwd_routes) - max(dist(W, Z, s, G) for s in back_routes)
-    cdef bytes s
-
-    ks = fwd_routes.keys()
-    shuffle(ks)
-
-    while not results:
+    while not results and depth_limit < 300:
         debug("Iterative DFS: depth limit =", depth_limit)
         _reset_visited_map()
-    
-        for s in ks:
-            route = fwd_routes[s]
-            pos = s.index(b'0')
-            depth_limit = slide_dfs(W, Z, back_routes, pos, s, depth_limit, route, results)
-        depth_limit += 2
+        # 辞書探索を減らすために、ゴールもビットマップに入れておく.
+        for s in back_routes:
+            _set_visited_map(hash(s))
+        slide_dfs(W, Z, back_routes, pos, S, depth_limit, b' ', results)
+        depth_limit += 16
 
-    return results
+    return [s.strip() for s in results]
 
 
 def solve2(int W, int H, bytes S, int QMAX=300000):
