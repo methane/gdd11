@@ -290,12 +290,12 @@ cdef unsigned int[VISITED_MAP_SIZE] _visited_map
 cdef _reset_visited_map():
     memset(_visited_map, 0, sizeof(_visited_map))
 
-cdef inline void _set_visited_map(long pos):
-    pos %= VISITED_MAP_SIZE
+cdef inline void _set_visited_map(Py_ssize_t pos):
+    pos %= VISITED_MAP_HASHSIZE
     _visited_map[pos/32] |= (1 << (pos%32))
 
-cdef inline bint _get_visited_map(long pos):
-    pos %= VISITED_MAP_SIZE
+cdef inline bint _get_visited_map(Py_ssize_t pos):
+    pos %= VISITED_MAP_HASHSIZE
     return _visited_map[pos/32] & (1 << (pos%32))
 
 
@@ -405,54 +405,63 @@ cpdef shuffle(list x):
 
 
 # iterative deeping用のDFS
-cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int dlimit,
-                   bytes route, list answer):
+cdef int slide_dfs(int W, int Z, G, int pos, bytes state, int depth_limit,
+                   bytes route, list answer, int dist):
 
     cdef unsigned long hashval = hash(state)
+
+    if depth_limit < 0:
+        return depth_limit
 
     if _get_visited_map(hashval):
         # ビットマップが立っている場合は、ゴールか、すでに通ったルートか、
         # それに衝突した場合. 衝突は割り切る.
         if state in G:
             route += G[state]
-            debug("Goal:", route)
+            debug("Goal:", len(route))
             answer.append(route)
-            return -1
-        return dlimit
+            return -2
+        return depth_limit
 
     _set_visited_map(hashval)
 
-    cdef int ndist
-    if dlimit <= 0:
-        return 0
+    if depth_limit-dist < 0:
+        return depth_limit
 
-    dlimit -= 1
+    depth_limit -= 1
+    cdef char *ps = state
+    cdef int npos
+    cdef bytes ns
 
     if pos>W and route[-1] !=b'D':
         npos = pos-W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'U', answer)
+            depth_limit = slide_dfs(W,Z,G, npos, ns, depth_limit, route+b'U',
+                                    answer, dist+dist_diff(ps, pos, npos, W))
 
     if pos%W and route[-1] !=b'R':
         npos = pos-1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'L', answer)
+            depth_limit = slide_dfs(W,Z,G, npos, ns, depth_limit, route+b'L',
+                                    answer, dist+dist_diff(ps, pos, npos, W))
 
     if pos+W<Z and route[-1] !=b'U':
         npos = pos+W
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'D', answer)
+            depth_limit = slide_dfs(W,Z,G, npos, ns, depth_limit, route+b'D',
+                                    answer, dist+dist_diff(ps, pos, npos, W))
 
     if (pos+1)%W and route[-1] !=b'L':
         npos = pos+1
         if state[npos] != '=':
             ns = move(state, pos, npos)
-            dlimit = slide_dfs(W,Z,G, npos, ns, dlimit, route+b'R', answer)
+            depth_limit = slide_dfs(W,Z,G, npos, ns, depth_limit, route+b'R',
+                                    answer, dist+dist_diff(ps, pos, npos, W))
 
-    return dlimit+1
+    return depth_limit+1
 
 
 def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
@@ -463,7 +472,6 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     init_dist_table(W, H, S)   
 
     cdef int start_step, back_step
-    results = []
 
     back_step, back_routes = limited_bfs(W, H, G, QMAX, (S,))
     for k in back_routes:
@@ -476,13 +484,15 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     cdef int pos = S.index(b'0')
     cdef int depth_limit = dist(W, Z, S, G)
 
+    results = []
     while not results and depth_limit < 300:
         debug("Iterative DFS: depth limit =", depth_limit)
         _reset_visited_map()
         # 辞書探索を減らすために、ゴールもビットマップに入れておく.
         for s in back_routes:
             _set_visited_map(hash(s))
-        slide_dfs(W, Z, back_routes, pos, S, depth_limit, b' ', results)
+        slide_dfs(W, Z, back_routes, pos, S, depth_limit, b' ', results,
+                  dist(W, Z, S, G) - max(dist(W, Z, s, G) for s in back_routes))
         depth_limit += 16
 
     return [s.strip() for s in results]
