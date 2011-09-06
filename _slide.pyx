@@ -297,7 +297,7 @@ cdef _del_visited_map():
     _visited_map=NULL
 
 cdef _reset_visited_map():
-    memset(_visited_map, 0, sizeof(_visited_map))
+    memset(_visited_map, 0, VISITED_MAP_SIZE*sizeof(int))
 
 cdef inline void _set_visited_map(Py_ssize_t pos):
     pos %= VISITED_MAP_HASHSIZE
@@ -326,7 +326,7 @@ cdef bfs_trymove(bytes state, int from_, int to_, bytes route, bytes d, q, goals
         return
 
     cdef int newdist = dist_diff(state, from_, to_, W) + dist
-    if newdist > dist_limit:
+    if newdist*3 > dist_limit:
         return
 
     newstate = PyBytes_FromString(<char*>state)
@@ -539,7 +539,7 @@ def solve2(int W, int H, bytes S, int QMAX=400000, max_depth=200):
     results = []
     srand(int(time()))
 
-    back_step, back_routes = limited_bfs(W, H, G, QMAX, (S,))
+    back_step, back_routes = limited_bfs(W, H, G, QMAX*2, (S,))
     for k in back_routes:
         back_routes[k] = reverse_route(back_routes[k])
     if back_step == 0:

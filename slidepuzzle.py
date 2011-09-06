@@ -16,7 +16,7 @@ import random
 import gc
 gc.disable()
 
-_SOLVE2_MAXDEPTH = 160
+_SOLVE2_MAXDEPTH = 200
 
 def debug(*args):
     print(*args, file=sys.stderr)
@@ -312,19 +312,25 @@ def cmd_missing(args):
 
 
 def cmd_solve_missing(args):
-    global _SOLVE2_MAXDEPTH
-    while True:
-        which = get_missing()
-        which = [random.choice(which)]
+    import _slide
+    limits, boards = read_problem()
 
-        for i,routes in solve(which):
+    while True:
+        i = random.choice(get_missing())
+        b = boards[i]
+        debug("start solving", i)
+
+        depth = 50
+        while depth < 400:
+            routes = _slide.solve2(b.w, b.h, b.state, 400000, depth)
             print(i, repr(routes))
             if routes:
                 with open('routes.txt', 'a') as f:
                     print(i, repr(routes), file=f)
                 save_route(i, routes)
+                break
             else:
-                _SOLVE2_MAXDEPTH += 4
+                depth += 40
 
 
 def save_route(i, routes):
