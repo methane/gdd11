@@ -16,6 +16,8 @@ import random
 import gc
 gc.disable()
 
+_SOLVE2_MAXDEPTH = 160
+
 def debug(*args):
     print(*args, file=sys.stderr)
 
@@ -172,7 +174,7 @@ def solve_inner(problem):
     debug("start solving", i)
     #routes = _slide.iterative_deeping(b.w, b.h, b.state)
     #routes = _slide.solve_slide(b.w, b.h, b.state)
-    routes = _slide.solve2(b.w, b.h, b.state)
+    routes = _slide.solve2(b.w, b.h, b.state, 400000, _SOLVE2_MAXDEPTH)
     #routes = _slide.solve_brute_force(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force2(b.w, b.h, b.state)
     #routes = _slide.solve_combined(b.w, b.h, b.state)
@@ -308,7 +310,9 @@ def cmd_missing(args):
     for i in get_missing():
         print(i)
 
+
 def cmd_solve_missing(args):
+    global _SOLVE2_MAXDEPTH
     while True:
         which = get_missing()
         which = [random.choice(which)]
@@ -318,6 +322,21 @@ def cmd_solve_missing(args):
             if routes:
                 with open('routes.txt', 'a') as f:
                     print(i, repr(routes), file=f)
+                save_route(i, routes)
+            else:
+                _SOLVE2_MAXDEPTH += 4
+
+
+def save_route(i, routes):
+    data = load_data()
+    L = data.setdefault(i, [])
+    for r in routes:
+        r = shorten(r)
+        if r not in L:
+            L.append(r)
+        L.sort(key=len)
+    save_data(data)
+
 
 def cmd_answer(args):
     LIMITS, BOARDS = read_problem()

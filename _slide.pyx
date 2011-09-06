@@ -320,7 +320,7 @@ cdef long _count_visited_map():
         bits += _count_bits(_visited_map[i])
     return bits
 
-cdef bfs_trymove(bytes state, int from_, int to_, bytes route, bytes d, visited, q, goals, goal_route,
+cdef bfs_trymove(bytes state, int from_, int to_, bytes route, bytes d, q, goals, goal_route,
                  int dist, int dist_limit, int W):
     if state[to_] == b'=':
         return
@@ -333,13 +333,13 @@ cdef bfs_trymove(bytes state, int from_, int to_, bytes route, bytes d, visited,
     cdef char *p = <char*>newstate
     p[from_], p[to_] = state[to_], state[from_]
 
-    if newstate in visited:
-        return
-    if newstate in goals:
-        goal_route[newstate] = (route+d).strip()
+    cdef Py_ssize_t hashval = hash(newstate)
+    if _get_visited_map(hashval):
+        if newstate in goals:
+            goal_route[newstate] = (route+d).strip()
         return
 
-    visited.add(newstate)
+    _set_visited_map(hashval)
     q.append((to_, newstate, route+d, newdist))
 
 
@@ -361,9 +361,6 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
 
     cdef list Q = [(pos, state, b' ', dist)]
 
-    visited = set([state])
-    old_v2 = old_v1 = set()
-
     cdef int step = 0
     goal_routes = {}
 
@@ -379,25 +376,22 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
                 break
 
         nq = []
-        old_v1 = set(visited)
 
         while Q:
             pos, state, route, dist = Q.pop()
 
             if pos >= W and route[-1] != b'D':
-                bfs_trymove(state, pos, pos-W, route, b'U', visited, nq, stop, goal_routes,
+                bfs_trymove(state, pos, pos-W, route, b'U', nq, stop, goal_routes,
                             dist, step_limit-step, W)
             if pos % W and route[-1] != b'R':
-                bfs_trymove(state, pos, pos-1, route, b'L', visited, nq, stop, goal_routes,
+                bfs_trymove(state, pos, pos-1, route, b'L', nq, stop, goal_routes,
                             dist, step_limit-step, W)
             if pos+W < Z and route[-1] != b'U':
-                bfs_trymove(state, pos, pos+W, route, b'D', visited, nq, stop, goal_routes,
+                bfs_trymove(state, pos, pos+W, route, b'D', nq, stop, goal_routes,
                             dist, step_limit-step, W)
             if (pos+1)%W and route[-1] != b'L':
-                bfs_trymove(state, pos, pos+1, route, b'R', visited, nq, stop, goal_routes,
+                bfs_trymove(state, pos, pos+1, route, b'R', nq, stop, goal_routes,
                             dist, step_limit-step, W)
-        visited -= old_v2
-        old_v2 = old_v1
         Q = nq
 
     if goal_routes:
@@ -417,12 +411,14 @@ cpdef shuffle(list x, int stop=-1):
     float in [0.0, 1.0); by default, the standard random.random.
     """
     cdef int i,j
+    cdef int N = len(x)
     if stop == -1:
-        stop = list(x)
-    for i in xrange(len(x)-1, -1, -1):
-        # pick an element in x[:i+1] with which to exchange x[i]
-        j = rand() % (i+1)
-        x[i], x[j] = x[j], x[i]
+        stop = N
+    for i in xrange(stop):
+        j = rand() % N
+        t = x[i]
+        x[i] = x[j]
+        x[j] = t
 
 
 # iterative deeping用のDFS
@@ -526,12 +522,16 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     return [s.strip() for s in results]
 
 
-def solve2(int W, int H, bytes S, int QMAX=400000):
+def solve2(int W, int H, bytes S, int QMAX=400000, max_depth=200):
     u"""
     幅優先＋枝刈り。 Iterative Deeping をベースに再実装.
     """
     cdef bytes G = make_goal(S)
     cdef int Z = W*H
+
+    if _visited_map == NULL:
+        _init_visited_map()
+    _reset_visited_map()
 
     init_dist_table(W, H, S)   
 
@@ -546,14 +546,19 @@ def solve2(int W, int H, bytes S, int QMAX=400000):
         return back_routes.values()
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
-    cdef int step_limit
-    for step_limit in xrange(160, 320, 8):
-        debug("Starting forward step with step_limit=", step_limit)
-        start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, step_limit, dist(W, Z, S, G))
-        if start_step == 0:
-            for k in fwd_routes:
-                results.append(fwd_routes[k] + back_routes[k])
-            return results
+    # Python のハッシュテーブルのコストを減らすために、ゴールへの到達判定も
+    # ビットマップを使う。
+    # 余計な部分まで枝刈りしないように、先端だけ埋めておく.
+    _reset_visited_map()
+    for k in back_routes:
+        _set_visited_map(hash(k))
+
+    debug("Starting forward step with step_limit=", max_depth)
+    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, max_depth, dist(W, Z, S, G))
+    if start_step == 0:
+        for k in fwd_routes:
+            results.append(fwd_routes[k] + back_routes[k])
+        return results
     return []
 
 cdef enum DIRECT:
