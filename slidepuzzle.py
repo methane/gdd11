@@ -182,7 +182,7 @@ def solve(which=None):
     of = sys.stdout
     limits, boards = read_problem()
     if which is None:
-        which = range(len(boards))
+        which = get_missing()
 
     procs = os.environ.get('SLIDE_PROCS')
     if procs:
@@ -191,17 +191,14 @@ def solve(which=None):
         pool = Pool(int(procs))
         problems = [(i,boards[i]) for i in which]
         for i, routes in pool.imap_unordered(solve_inner, problems):
-            if routes:
-                print(i, repr(routes), file=of)
-                of.flush()
+            yield (i, routes)
     else:
         # single processing
         for i in which:
             b = boards[i]
             i, routes = solve_inner((i, b))
-            if routes:
-                print(i, repr(routes), file=of)
-                of.flush()
+            yield (i, routes)
+
 
 def merge_result(l, r):
     for k in r:
@@ -209,6 +206,7 @@ def merge_result(l, r):
             l[k] = r[k]
         else:
             l[k].extend(r[k])
+
 
 def read_routes(fn='routes.txt'):
     routes = {}
@@ -251,9 +249,15 @@ def cmd_solve(args):
                     which.extend(range(0, int(e)))
             else:
                 which.append(int(arg))
-        solve(which)
     else:
-        solve()
+        which = None
+
+    for i,routes in solve(which):
+        print(i, repr(routes))
+        if routes:
+            with open('routes.txt', 'a') as f:
+                print(i, repr(routes), file=f)
+
 
 def cmd_check(args):
     limits, boards = read_problem()
@@ -294,9 +298,11 @@ def cmd_dump(args):
 
 def get_missing():
     data = load_data()
+    result = []
     for i in xrange(5000):
         if i not in data or not(data[i]):
-            yield i
+            result.append(i)
+    return result
 
 def cmd_missing(args):
     for i in get_missing():
@@ -304,9 +310,14 @@ def cmd_missing(args):
 
 def cmd_solve_missing(args):
     while True:
-        which = list(get_missing())
+        which = get_missing()
         which = [random.choice(which)]
-        solve(which)
+
+        for i,routes in solve(which):
+            print(i, repr(routes))
+            if routes:
+                with open('routes.txt', 'a') as f:
+                    print(i, repr(routes), file=f)
 
 def cmd_answer(args):
     LIMITS, BOARDS = read_problem()
