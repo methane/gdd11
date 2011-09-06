@@ -170,9 +170,9 @@ def solve_inner(problem):
     import _slide
     i,b = problem
     debug("start solving", i)
-    routes = _slide.iterative_deeping(b.w, b.h, b.state)
+    #routes = _slide.iterative_deeping(b.w, b.h, b.state)
     #routes = _slide.solve_slide(b.w, b.h, b.state)
-    #routes = _slide.solve2(b.w, b.h, b.state)
+    routes = _slide.solve2(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force2(b.w, b.h, b.state)
     #routes = _slide.solve_combined(b.w, b.h, b.state)
