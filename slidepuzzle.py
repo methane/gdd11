@@ -292,16 +292,21 @@ def cmd_dump(args):
     data = load_data()
     pprint(data)
 
-def cmd_missing(args):
+def get_missing():
     data = load_data()
     for i in xrange(5000):
         if i not in data or not(data[i]):
-            print(i)
+            yield i
+
+def cmd_missing(args):
+    for i in get_missing():
+        print(i)
 
 def cmd_solve_missing(args):
-    which = map(int, open(args[0]))
-    random.shuffle(which)
-    solve(which)
+    while True:
+        which = list(get_missing())
+        which = [random.choice(which)]
+        solve(which)
 
 def cmd_answer(args):
     LIMITS, BOARDS = read_problem()

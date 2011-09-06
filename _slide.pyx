@@ -358,7 +358,6 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
     cdef bytes state = initial_state
     cdef int pos = state.index(b'0')
     cdef int Z = W*H
-    cdef bytes G = make_goal(state)
 
     cdef list Q = [(pos, state, b' ', dist)]
 
@@ -374,7 +373,7 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
         if len(Q) > threshold:
             if cutdown:
                 debug("step=", step, "cutting from", len(Q))
-                shuffle(Q)
+                shuffle(Q, threshold)
                 del Q[threshold:]
             else:
                 break
@@ -411,13 +410,15 @@ cdef limited_bfs(int W, int H, bytes initial_state, int threshold, stop,
 
 
 
-cpdef shuffle(list x):
+cpdef shuffle(list x, int stop=-1):
     """x, random=random.random -> shuffle list x in place; return None.
 
     Optional arg random is a 0-argument function returning a random
     float in [0.0, 1.0); by default, the standard random.random.
     """
     cdef int i,j
+    if stop == -1:
+        stop = list(x)
     for i in xrange(len(x)-1, -1, -1):
         # pick an element in x[:i+1] with which to exchange x[i]
         j = rand() % (i+1)
@@ -525,7 +526,7 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     return [s.strip() for s in results]
 
 
-def solve2(int W, int H, bytes S, int QMAX=300000):
+def solve2(int W, int H, bytes S, int QMAX=400000):
     u"""
     幅優先＋枝刈り。 Iterative Deeping をベースに再実装.
     """
@@ -546,7 +547,7 @@ def solve2(int W, int H, bytes S, int QMAX=300000):
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
     cdef int step_limit
-    for step_limit in xrange(160, 360, 4):
+    for step_limit in xrange(160, 320, 8):
         debug("Starting forward step with step_limit=", step_limit)
         start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, step_limit, dist(W, Z, S, G))
         if start_step == 0:
