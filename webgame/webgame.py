@@ -1,6 +1,14 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 import requests
 import re
 import json
+
+url = 'http://gdd-2011-quiz-japan.appspot.com/webgame/problem'
+
+# ブラウザからクッキーを持ってくる.
+cookie = 'secret'
 
 def solve(url, cookie):
     setup = re.compile(r"setup\((.*?)\)")
@@ -29,3 +37,5 @@ def solve(url, cookie):
         print "answer:", answer
 
         r = requests.post(url, data=dict(answer=answer), cookies=cookie)
+
+solve(url, cookie)
