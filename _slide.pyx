@@ -326,7 +326,7 @@ cdef bfs_trymove(bytes state, int from_, int to_, bytes route, bytes d, q, goals
         return
 
     cdef int newdist = dist_diff(state, from_, to_, W) + dist
-    if newdist*3 > dist_limit:
+    if newdist*2 > dist_limit:
         return
 
     newstate = PyBytes_FromString(<char*>state)
@@ -522,7 +522,7 @@ def iterative_deeping(int W, int H, bytes S, int QMAX=400000):
     return [s.strip() for s in results]
 
 
-def solve2(int W, int H, bytes S, int QMAX=400000, max_depth=200):
+def solve2(int W, int H, bytes S, int QMAX=400000, int depth_start=50, int depth_end=400, int depth_step=20):
     u"""
     幅優先＋枝刈り。 Iterative Deeping をベースに再実装.
     """
@@ -546,19 +546,20 @@ def solve2(int W, int H, bytes S, int QMAX=400000, max_depth=200):
         return back_routes.values()
     debug("Back step stopped at", back_step, "steps and", len(back_routes), "states.")
 
-    # Python のハッシュテーブルのコストを減らすために、ゴールへの到達判定も
-    # ビットマップを使う。
-    # 余計な部分まで枝刈りしないように、先端だけ埋めておく.
-    _reset_visited_map()
-    for k in back_routes:
-        _set_visited_map(hash(k))
+    for depth_limit in xrange(depth_start, depth_end, depth_step):
+        # Python のハッシュテーブルのコストを減らすために、ゴールへの到達判定も
+        # ビットマップを使う。
+        # 余計な部分まで枝刈りしないように、先端だけ埋めておく.
+        _reset_visited_map()
+        for k in back_routes:
+            _set_visited_map(hash(k))
 
-    debug("Starting forward step with step_limit=", max_depth)
-    start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, max_depth, dist(W, Z, S, G))
-    if start_step == 0:
-        for k in fwd_routes:
-            results.append(fwd_routes[k] + back_routes[k])
-        return results
+        debug("Starting forward step with step_limit=", depth_limit)
+        start_step, fwd_routes = limited_bfs(W, H, S, QMAX, back_routes, 1, depth_limit, dist(W, Z, S, G))
+        if start_step == 0:
+            for k in fwd_routes:
+                results.append(fwd_routes[k] + back_routes[k])
+            return results
     return []
 
 cdef enum DIRECT:

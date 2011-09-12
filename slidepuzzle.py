@@ -174,10 +174,10 @@ def solve_inner(problem):
     debug("start solving", i)
     #routes = _slide.iterative_deeping(b.w, b.h, b.state)
     #routes = _slide.solve_slide(b.w, b.h, b.state)
-    routes = _slide.solve2(b.w, b.h, b.state, 400000, _SOLVE2_MAXDEPTH)
+    #routes = _slide.solve2(b.w, b.h, b.state, 400000, _SOLVE2_MAXDEPTH)
     #routes = _slide.solve_brute_force(b.w, b.h, b.state)
     #routes = _slide.solve_brute_force2(b.w, b.h, b.state)
-    #routes = _slide.solve_combined(b.w, b.h, b.state)
+    routes = _slide.solve_combined(b.w, b.h, b.state)
     return i,routes
 
 def solve(which=None):
@@ -319,18 +319,13 @@ def cmd_solve_missing(args):
         i = random.choice(get_missing())
         b = boards[i]
         debug("start solving", i)
-
-        depth = 50
-        while depth < 400:
-            routes = _slide.solve2(b.w, b.h, b.state, 400000, depth)
-            print(i, repr(routes))
-            if routes:
-                with open('routes.txt', 'a') as f:
-                    print(i, repr(routes), file=f)
-                save_route(i, routes)
-                break
-            else:
-                depth += 40
+        routes = _slide.solve2(b.w, b.h, b.state, 400000, 150, 1000, 20)
+        print(i, repr(routes))
+        if routes:
+            with open('routes.txt', 'a') as f:
+                print(i, repr(routes), file=f)
+            save_route(i, routes)
+            break
 
 
 def save_route(i, routes):
