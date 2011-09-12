@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# ただの深さ優先探索.
+# 無限ループしないように、 /2 操作で変化がない場合を切る.
+
 def read_input():
     problem = []
     with open('input.txt', 'r') as f:
